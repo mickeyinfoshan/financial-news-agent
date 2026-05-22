@@ -20,8 +20,9 @@ This is an AI agent system for financial news analysis. The agent searches recen
 
 - **Language**: Python 3.11+
 - **Package Manager**: `uv` (NEVER use `pip`)
-- **Agent Framework**: LangGraph for agentic workflows
-- **LLM**: Claude 4.x via Anthropic SDK with prompt caching
+- **Agent Framework**: Custom agent loop with OpenAI function calling
+- **LLM**: OpenAI API (GPT-4.5 or compatible models)
+- **News Sources**: NewsAPI and Finnhub for financial news
 
 ## Development Setup
 
@@ -45,12 +46,13 @@ uv run pytest
 ## Project Structure
 
 ```
-financial_news_agent/     # Main source code
-├── agent/                # Agent workflow components
-├── news/                 # News search and retrieval
-├── knowledge/            # Knowledge management integration
-├── analysis/             # Analysis and reasoning engine
-└── traceability/         # Traceability tracking
+financial_news_agent/     # Main source code (flat structure)
+├── __init__.py
+├── __main__.py           # Entry point
+├── agent.py              # Main agent loop with LLM and tool calling
+├── news_tool.py          # News search (NewsAPI + Finnhub)
+├── traceability.py       # Traceability tracking
+└── evaluator.py          # Self-evaluation logic
 
 tests/                    # Formal unit and integration tests
 .dev_process/             # Temporary validation scripts (not committed long-term)
@@ -67,23 +69,41 @@ tests/                    # Formal unit and integration tests
 
 ## Architecture
 
-The system is designed as an agentic workflow with these components:
+The system uses a simple agentic loop with these components:
 
-1. **News Search & Retrieval**: Fetches recent financial news from multiple sources with metadata tracking
-2. **Knowledge Management**: Integrates with KMS for historical context and API data
-3. **Analysis Engine**: Generates storylines and impact assessments using LLM reasoning
-4. **Traceability System**: Maintains audit trail from query → sources → reasoning → response
-5. **Self-Evaluation**: Validates response quality against defined criteria before returning
+1. **Agent Loop** (`agent.py`): Orchestrates LLM calls with OpenAI function calling
+   - Iterative loop (max 10 iterations)
+   - Calls news search tool as needed
+   - Tracks all tool calls and reasoning steps
 
-**Agent Workflow Pattern**:
-- Use LangGraph for state management and workflow orchestration
-- Each node should emit traceability metadata (sources used, reasoning steps)
-- Include self-evaluation as final workflow node before response
-- Implement prompt caching for repeated LLM calls with same context
+2. **News Search** (`news_tool.py`): Multi-source news retrieval
+   - NewsAPI for general financial news
+   - Finnhub for company-specific news with ticker lookup
+   - Parallel API calls with deduplication
+   - Dynamic ticker resolution via Finnhub Symbol Search API
+
+3. **Traceability** (`traceability.py`): Audit trail tracking
+   - Records all sources, tool calls, and reasoning steps
+   - Maintains query → sources → reasoning → response chain
+
+4. **Self-Evaluation** (`evaluator.py`): Quality validation
+   - Evaluates accuracy, relevance, coherence, and impact analysis
+   - Blocks low-quality responses before returning
 
 ## Implementation Priorities
 
 1. **Transparency First**: Every claim must link back to specific sources
 2. **Audit Trail**: Log all decision points and data transformations
 3. **Quality Gates**: Self-evaluation must block low-quality responses
-4. **Prompt Caching**: Cache news context and knowledge base for cost efficiency
+4. **Multi-Source Coverage**: Combine NewsAPI and Finnhub for comprehensive news coverage
+
+## Environment Variables
+
+Required API keys in `.env`:
+```bash
+OPENAI_API_KEY=your_openai_api_key
+OPENAI_BASE_URL=https://api.openai.com/v1  # Optional, for custom endpoints
+OPENAI_MODEL=gpt-4.5  # Optional, defaults to gpt-4.5
+NEWS_API_KEY=your_newsapi_key
+FINNHUB_API_KEY=your_finnhub_api_key
+```
