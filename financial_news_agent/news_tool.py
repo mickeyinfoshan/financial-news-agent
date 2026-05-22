@@ -2,17 +2,24 @@
 
 import os
 import re
+import time
+import logging
 from datetime import datetime, timedelta
 from typing import List, Dict, Optional
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from functools import lru_cache
 import requests
 from dotenv import load_dotenv
+
+# Configure logging
+logger = logging.getLogger(__name__)
 
 # Load environment variables from .env file
 load_dotenv()
 
-# Company name to ticker mapping for Finnhub
-COMPANY_TO_TICKER = {
+# Common company to ticker mapping (fast path for frequent queries)
+# Reduced to most common companies; API lookup handles the rest
+COMMON_TICKERS = {
     "nvidia": "NVDA",
     "apple": "AAPL",
     "microsoft": "MSFT",
@@ -23,68 +30,22 @@ COMPANY_TO_TICKER = {
     "meta": "META",
     "facebook": "META",
     "netflix": "NFLX",
-    "amd": "AMD",
-    "intel": "INTC",
-    "qualcomm": "QCOM",
-    "broadcom": "AVGO",
-    "oracle": "ORCL",
-    "salesforce": "CRM",
-    "adobe": "ADBE",
-    "cisco": "CSCO",
-    "ibm": "IBM",
-    "walmart": "WMT",
     "jpmorgan": "JPM",
     "jp morgan": "JPM",
-    "bank of america": "BAC",
-    "wells fargo": "WFC",
     "goldman sachs": "GS",
-    "morgan stanley": "MS",
-    "visa": "V",
-    "mastercard": "MA",
-    "paypal": "PYPL",
-    "berkshire hathaway": "BRK.B",
-    "johnson & johnson": "JNJ",
-    "unitedhealth": "UNH",
-    "pfizer": "PFE",
-    "merck": "MRK",
-    "abbvie": "ABBV",
-    "eli lilly": "LLY",
-    "exxon": "XOM",
-    "exxonmobil": "XOM",
-    "chevron": "CVX",
-    "conocophillips": "COP",
-    "boeing": "BA",
-    "lockheed martin": "LMT",
-    "ge": "GE",
-    "general electric": "GE",
-    "caterpillar": "CAT",
-    "3m": "MMM",
-    "honeywell": "HON",
-    "coca cola": "KO",
-    "coca-cola": "KO",
-    "pepsico": "PEP",
-    "procter & gamble": "PG",
-    "nike": "NKE",
-    "starbucks": "SBUX",
-    "mcdonald's": "MCD",
-    "mcdonalds": "MCD",
-    "disney": "DIS",
-    "comcast": "CMCSA",
-    "verizon": "VZ",
-    "at&t": "T",
-    "t-mobile": "TMUS",
 }
 
-# In-memory cache for symbol lookups
-_symbol_cache = {}
 
-
-def _search_symbol_finnhub(company_name: str) -> Optional[str]:
+@lru_cache(maxsize=500)
+def _search_symbol_finnhub(company_name: str, max_retries: int = 2) -> Optional[str]:
     """
-    Search for ticker symbol using Finnhub Symbol Search API.
+    Search for ticker symbol using Finnhub Symbol Search API with retry logic.
+
+    Uses LRU cache to store up to 500 recent lookups in memory.
 
     Args:
         company_name: Company name to search for
+        max_retries: Maximum number of retry attempts (default: 2)
 
     Returns:
         Ticker symbol if found, None otherwise
@@ -93,45 +54,62 @@ def _search_symbol_finnhub(company_name: str) -> Optional[str]:
     if not api_key:
         return None
 
-    # Check cache first
-    cache_key = company_name.lower().strip()
-    if cache_key in _symbol_cache:
-        return _symbol_cache[cache_key]
-
     url = "https://finnhub.io/api/v1/search"
     params = {
         "q": company_name,
         "token": api_key
     }
 
-    try:
-        response = requests.get(url, params=params, timeout=5)
-        response.raise_for_status()
-        data = response.json()
+    for attempt in range(max_retries + 1):
+        try:
+            response = requests.get(url, params=params, timeout=5)
 
-        # Extract first result (highest relevance)
-        if data.get("count", 0) > 0:
-            results = data.get("result", [])
+            # Handle API rate limiting
+            if response.status_code == 429:
+                if attempt < max_retries:
+                    wait_time = 2 ** attempt
+                    logger.warning(f"API rate limit hit for '{company_name}', retrying in {wait_time}s...")
+                    time.sleep(wait_time)
+                    continue
+                else:
+                    logger.error(f"API rate limit exceeded for '{company_name}'")
+                    return None
 
-            # Prefer Common Stock over ADRs and other types
-            for result in results:
-                if result.get("type") == "Common Stock":
-                    symbol = result.get("symbol")
+            response.raise_for_status()
+            data = response.json()
+
+            # Extract first result (highest relevance)
+            if data.get("count", 0) > 0:
+                results = data.get("result", [])
+
+                # Prefer Common Stock over ADRs and other types
+                for result in results:
+                    if result.get("type") == "Common Stock":
+                        symbol = result.get("symbol")
+                        if symbol:
+                            logger.info(f"Found ticker via API: {company_name} -> {symbol}")
+                            return symbol
+
+                # Fallback to first result if no Common Stock found
+                if results:
+                    symbol = results[0].get("symbol")
                     if symbol:
-                        _symbol_cache[cache_key] = symbol
-                        print(f"Found ticker via API: {company_name} -> {symbol}")
+                        logger.info(f"Found ticker via API (non-stock): {company_name} -> {symbol}")
                         return symbol
 
-            # Fallback to first result if no Common Stock found
-            if results:
-                symbol = results[0].get("symbol")
-                if symbol:
-                    _symbol_cache[cache_key] = symbol
-                    print(f"Found ticker via API (non-stock): {company_name} -> {symbol}")
-                    return symbol
+            return None
 
-    except requests.exceptions.RequestException as e:
-        print(f"Error searching Finnhub for '{company_name}': {e}")
+        except requests.exceptions.Timeout:
+            if attempt < max_retries:
+                logger.warning(f"Timeout searching for '{company_name}' (attempt {attempt + 1}/{max_retries + 1}), retrying...")
+                time.sleep(1)
+                continue
+            else:
+                logger.error(f"Timeout searching for '{company_name}' after {max_retries + 1} attempts")
+                return None
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Error searching Finnhub for '{company_name}': {e}")
+            return None
 
     return None
 
@@ -166,13 +144,12 @@ def _extract_ticker(query: str) -> str:
     """
     Extract or map ticker symbol from query.
 
-    Uses a hybrid approach:
+    Uses a hybrid approach (API-first strategy):
     1. Check for explicit ticker in parentheses
     2. Check if query is already a ticker
-    3. Try hardcoded dictionary (fast path)
-    4. Try Finnhub Symbol Search API (dynamic lookup)
-    5. Try partial matches in dictionary
-    6. Fallback to query as-is
+    3. Try common tickers dictionary (fast path for frequent queries)
+    4. Try Finnhub Symbol Search API (primary lookup method)
+    5. Fallback to query as-is
 
     Args:
         query: Search query (company name, ticker, or mixed)
@@ -189,26 +166,21 @@ def _extract_ticker(query: str) -> str:
     if re.match(r'^[A-Z]{1,5}$', query.strip()):
         return query.strip()
 
-    # Try hardcoded dictionary (fast path - no API call)
+    # Try common tickers dictionary (fast path - no API call)
     query_lower = query.lower().strip()
-    if query_lower in COMPANY_TO_TICKER:
-        return COMPANY_TO_TICKER[query_lower]
+    if query_lower in COMMON_TICKERS:
+        return COMMON_TICKERS[query_lower]
 
-    # Try dynamic lookup via Finnhub Symbol Search API
+    # Try dynamic lookup via Finnhub Symbol Search API (primary method)
     symbol = _search_symbol_finnhub(query)
     if symbol:
         return symbol
-
-    # Check for partial matches in hardcoded dictionary (fallback)
-    for company, ticker in COMPANY_TO_TICKER.items():
-        if company in query_lower or query_lower in company:
-            return ticker
 
     # Final fallback: return query as-is (uppercase)
     return query.strip().upper()
 
 
-def _search_newsapi(query: str, days_back: int = 7) -> List[Dict]:
+def _search_newsapi(query: str, days_back: int = 7) -> List[Dict[str, str]]:
     """
     Search for financial news using NewsAPI.
 
@@ -221,7 +193,7 @@ def _search_newsapi(query: str, days_back: int = 7) -> List[Dict]:
     """
     api_key = os.getenv("NEWS_API_KEY")
     if not api_key:
-        print("Warning: NEWS_API_KEY not set, skipping NewsAPI")
+        logger.warning("NEWS_API_KEY not set, skipping NewsAPI")
         return []
 
     # Calculate date range
@@ -264,11 +236,11 @@ def _search_newsapi(query: str, days_back: int = 7) -> List[Dict]:
         return articles
 
     except requests.exceptions.RequestException as e:
-        print(f"Error fetching from NewsAPI: {e}")
+        logger.error(f"Error fetching from NewsAPI: {e}")
         return []
 
 
-def _search_finnhub_news(query: str, days_back: int = 7) -> List[Dict]:
+def _search_finnhub_news(query: str, days_back: int = 7) -> List[Dict[str, str]]:
     """
     Search for financial news using Finnhub.
 
@@ -281,7 +253,7 @@ def _search_finnhub_news(query: str, days_back: int = 7) -> List[Dict]:
     """
     api_key = os.getenv("FINNHUB_API_KEY")
     if not api_key:
-        print("Warning: FINNHUB_API_KEY not set, skipping Finnhub")
+        logger.warning("FINNHUB_API_KEY not set, skipping Finnhub")
         return []
 
     # Extract ticker from query
@@ -325,11 +297,11 @@ def _search_finnhub_news(query: str, days_back: int = 7) -> List[Dict]:
         return articles
 
     except requests.exceptions.RequestException as e:
-        print(f"Error fetching from Finnhub: {e}")
+        logger.error(f"Error fetching from Finnhub: {e}")
         return []
 
 
-def search_financial_news(query: str, days_back: int = 7) -> List[Dict]:
+def search_financial_news(query: str, days_back: int = 7) -> List[Dict[str, str]]:
     """
     Search for financial news using both NewsAPI and Finnhub.
 
@@ -341,7 +313,9 @@ def search_financial_news(query: str, days_back: int = 7) -> List[Dict]:
         days_back: Number of days to search back
 
     Returns:
-        List of news articles with metadata from both sources
+        List of news articles with metadata from both sources.
+        Each article contains: title, description, source, url,
+        published_at, content, api_source
     """
     all_articles = []
 
@@ -357,9 +331,9 @@ def search_financial_news(query: str, days_back: int = 7) -> List[Dict]:
             try:
                 articles = future.result()
                 all_articles.extend(articles)
-                print(f"Fetched {len(articles)} articles from {source}")
+                logger.info(f"Fetched {len(articles)} articles from {source}")
             except Exception as e:
-                print(f"Error fetching from {source}: {e}")
+                logger.error(f"Error fetching from {source}: {e}")
 
     # Deduplicate by URL
     seen_urls = set()
@@ -380,8 +354,8 @@ def search_financial_news(query: str, days_back: int = 7) -> List[Dict]:
                 dt = datetime.fromisoformat(date_str.replace("Z", "+00:00"))
                 # Return as naive datetime for consistent comparison
                 return dt.replace(tzinfo=None)
-        except:
-            pass
+        except (ValueError, TypeError) as e:
+            logger.debug(f"Failed to parse date '{date_str}': {e}")
         return datetime.min
 
     unique_articles.sort(key=parse_date, reverse=True)
@@ -390,8 +364,20 @@ def search_financial_news(query: str, days_back: int = 7) -> List[Dict]:
     return unique_articles[:20]
 
 
-def execute_tool(tool_name: str, arguments: dict) -> List[Dict]:
-    """Execute the news search tool."""
+def execute_tool(tool_name: str, arguments: dict) -> List[Dict[str, str]]:
+    """
+    Execute the news search tool.
+
+    Args:
+        tool_name: Name of the tool to execute
+        arguments: Tool arguments dictionary
+
+    Returns:
+        List of news articles
+
+    Raises:
+        ValueError: If tool_name is unknown
+    """
     if tool_name == "search_financial_news":
         query = arguments.get("query", "")
         days_back = arguments.get("days_back", 7)
