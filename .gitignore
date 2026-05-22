@@ -12,3 +12,6 @@ build/
 .env
 .DS_Store
 *.log
+.coverage
+htmlcov/
+.pytest_cache/

@@ -102,7 +102,8 @@ Base your analysis strictly on the sources you find."""
                             "date": article.get("published_at", ""),
                             "source": article.get("source", ""),
                             "url": article.get("url", ""),
-                            "summary": article.get("description", "")
+                            "summary": article.get("description", ""),
+                            "api_source": article.get("api_source", "unknown")
                         })
 
                     # Add tool result to conversation
