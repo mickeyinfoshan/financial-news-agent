@@ -42,7 +42,7 @@ def compress_tool_result(articles: list, aggressive: bool = False) -> list:
         aggressive: If True, apply aggressive compression (limit articles)
 
     Returns:
-        list: Compressed articles with reduced fields
+        list: Compressed articles with reduced fields and source numbering
     """
     if not articles:
         return []
@@ -52,10 +52,11 @@ def compress_tool_result(articles: list, aggressive: bool = False) -> list:
         articles = articles[:10]
         logger.info(f"Aggressive compression: limited to {len(articles)} articles")
 
-    # Tier 1: Keep only essential fields
+    # Tier 1: Keep only essential fields and add source numbering
     compressed = []
-    for article in articles:
+    for idx, article in enumerate(articles, 1):
         compressed.append({
+            "id": idx,
             "title": article.get("title", ""),
             "source": article.get("source", ""),
             "url": article.get("url", ""),

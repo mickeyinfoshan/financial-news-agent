@@ -19,6 +19,7 @@ def main():
 1. Search for recent financial news about the company or industry the user asks about
 2. Analyze the news to create a coherent storyline of what has been happening
 3. Provide future impact analysis based on the trends you observe
+4. **Cite your sources using numbered references [1], [2], [3] etc.**
 
 When using the search_financial_news tool:
 - Use the 'query' parameter for your full search query with keywords
@@ -32,9 +33,16 @@ Examples:
 - Multiple companies: query="BYD sales China", company_name="BYD" (separate call)
 - Industry: query="EV industry trends", company_name=None
 
+**IMPORTANT - Source Citations:**
+When you receive news articles from the tool, they will be numbered (id: 1, 2, 3, etc.).
+You MUST cite these sources in your answer using the format [1], [2], [3] whenever you reference information from them.
+
+Example citation style:
+"Apple's stock rose 5% following strong earnings [1]. Analysts predict continued growth in the AI sector [2][3]."
+
 Always use the search_financial_news tool to gather information before answering.
 Be thorough - you can call the tool multiple times with different queries if needed.
-Base your analysis strictly on the sources you find."""
+Base your analysis strictly on the sources you find and cite them appropriately."""
     }
 
     messages = [system_message]
@@ -65,24 +73,45 @@ Base your analysis strictly on the sources you find."""
             print(result["answer"])
             print()
 
+            # Extract citations from answer
+            import re
+            citations = re.findall(r'\[(\d+)\]', result["answer"])
+            cited_indices = sorted(set(int(c) for c in citations if c.isdigit()))
+
+            # Display only cited sources
             print("=" * 60)
-            print(f"SOURCES ({len(result['sources'])} articles)")
+            if cited_indices:
+                print(f"CITED SOURCES ({len(cited_indices)} articles)")
+            else:
+                print(f"SOURCES ({len(result['sources'])} articles)")
             print("=" * 60)
-            for i, source in enumerate(result["sources"][:10], 1):
-                print(f"{i}. {source['title']}")
-                print(f"   Source: {source['source']} | Date: {source['date']}")
-                print(f"   URL: {source['url']}")
-                print()
+
+            if cited_indices:
+                # Show only sources that were cited
+                for idx in cited_indices:
+                    if 1 <= idx <= len(result['sources']):
+                        source = result['sources'][idx - 1]
+                        print(f"[{idx}] {source['title']}")
+                        print(f"    Source: {source['source']} | Date: {source['date']}")
+                        print(f"    URL: {source['url']}")
+                        print()
+            else:
+                # Fallback: show first 10 if no citations found
+                for i, source in enumerate(result["sources"][:10], 1):
+                    print(f"[{i}] {source['title']}")
+                    print(f"    Source: {source['source']} | Date: {source['date']}")
+                    print(f"    URL: {source['url']}")
+                    print()
 
             print("=" * 60)
             print("EVALUATION")
             print("=" * 60)
             eval_data = result["evaluation"]
-            print(f"Overall Score: {eval_data['overall']}/5.0")
-            print(f"  - Accuracy: {eval_data.get('accuracy', 'N/A')}/5")
-            print(f"  - Relevance: {eval_data.get('relevance', 'N/A')}/5")
-            print(f"  - Coherence: {eval_data.get('coherence', 'N/A')}/5")
-            print(f"  - Reasonableness: {eval_data.get('reasonableness', 'N/A')}/5")
+            print(f"Overall Score: {eval_data['overall']}/10.0")
+            print(f"  - Accuracy: {eval_data.get('accuracy', 'N/A')}/10")
+            print(f"  - Relevance: {eval_data.get('relevance', 'N/A')}/10")
+            print(f"  - Coherence: {eval_data.get('coherence', 'N/A')}/10")
+            print(f"  - Reasonableness: {eval_data.get('reasonableness', 'N/A')}/10")
             print(f"\nFeedback: {eval_data.get('feedback', 'N/A')}")
             print()
 

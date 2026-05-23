@@ -205,13 +205,13 @@ def run_agent(user_query: str, messages: list) -> tuple[dict, list]:
 
                     # Compress result for LLM context
                     aggressive = total_tokens > config["warning_threshold"]
-                    compressed_result = compress_tool_result(result, aggressive=aggressive)
+                    compressed_articles = compress_tool_result(result, aggressive=aggressive)
 
                     # Add compressed tool result to conversation
                     messages.append({
                         "role": "tool",
                         "tool_call_id": tool_call.id,
-                        "content": json.dumps(compressed_result, ensure_ascii=False)
+                        "content": json.dumps({"articles": compressed_articles}, ensure_ascii=False)
                     })
             else:
                 # No tool calls, this is the final answer
