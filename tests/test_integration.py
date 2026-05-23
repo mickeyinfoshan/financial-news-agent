@@ -7,12 +7,15 @@ Run with: uv run pytest tests/test_integration.py -v -m integration
 """
 
 import os
+
 import pytest
+
 from financial_news_agent.news_tool import (
     _search_symbol_finnhub,
     _search_finnhub_news,
     _search_newsapi,
-    search_financial_news
+    search_financial_news,
+    _extract_ticker
 )
 
 
@@ -100,8 +103,6 @@ class TestCombinedIntegration:
 
     def test_real_ticker_extraction_with_api(self):
         """Test ticker extraction using real API for unknown companies."""
-        from financial_news_agent.news_tool import _extract_ticker
-
         # Test with a company not in COMMON_TICKERS
         result = _extract_ticker("snowflake")
         assert result is not None

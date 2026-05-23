@@ -1,6 +1,7 @@
 """CLI entry point for the financial news agent."""
 
 from .agent import run_agent_with_retry
+from .utils import extract_citations
 
 
 def main():
@@ -74,9 +75,7 @@ Base your analysis strictly on the sources you find and cite them appropriately.
             print()
 
             # Extract citations from answer
-            import re
-            citations = re.findall(r'\[(\d+)\]', result["answer"])
-            cited_indices = sorted(set(int(c) for c in citations if c.isdigit()))
+            cited_indices = extract_citations(result["answer"])
 
             # Display only cited sources
             print("=" * 60)
@@ -118,17 +117,17 @@ Base your analysis strictly on the sources you find and cite them appropriately.
             # Display retry history if available
             if "retry_history" in result and result["retry_history"]:
                 print("=" * 60)
-                print("重试历史")
+                print("RETRY HISTORY")
                 print("=" * 60)
                 for attempt_data in result["retry_history"]:
-                    print(f"\n尝试 {attempt_data['attempt']}:")
+                    print(f"\nAttempt {attempt_data['attempt']}:")
                     eval_data = attempt_data['evaluation']
-                    print(f"  总分: {eval_data['overall']}/10")
-                    print(f"  准确性: {eval_data.get('accuracy', 0)}/10")
-                    print(f"  相关性: {eval_data.get('relevance', 0)}/10")
-                    print(f"  连贯性: {eval_data.get('coherence', 0)}/10")
-                    print(f"  合理性: {eval_data.get('reasonableness', 0)}/10")
-                    print(f"  回答预览: {attempt_data['answer'][:150]}...")
+                    print(f"  Overall: {eval_data['overall']}/10")
+                    print(f"  Accuracy: {eval_data.get('accuracy', 0)}/10")
+                    print(f"  Relevance: {eval_data.get('relevance', 0)}/10")
+                    print(f"  Coherence: {eval_data.get('coherence', 0)}/10")
+                    print(f"  Reasonableness: {eval_data.get('reasonableness', 0)}/10")
+                    print(f"  Answer Preview: {attempt_data['answer'][:150]}...")
                 print()
 
     except KeyboardInterrupt:

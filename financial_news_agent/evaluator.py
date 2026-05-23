@@ -2,11 +2,11 @@
 
 import os
 import json
+import logging
 from openai import OpenAI
-from dotenv import load_dotenv
+from .utils import extract_citations
 
-# Load environment variables from .env file
-load_dotenv()
+logger = logging.getLogger(__name__)
 
 
 def evaluate_response(answer: str, tracker, user_query: str = None) -> dict:
@@ -27,9 +27,7 @@ def evaluate_response(answer: str, tracker, user_query: str = None) -> dict:
     )
 
     # Extract citations from answer to determine which sources to include
-    import re
-    citations = re.findall(r'\[(\d+)\]', answer)
-    cited_indices = sorted(set(int(c) for c in citations if c.isdigit()))
+    cited_indices = extract_citations(answer)
 
     # Build evaluation prompt with only cited sources
     if cited_indices:
@@ -111,7 +109,7 @@ Respond with ONLY a JSON object in this exact format:
         return evaluation
 
     except Exception as e:
-        print(f"Evaluation error: {e}")
+        logger.error(f"Evaluation error: {e}")
         # Return default evaluation on error
         return {
             "accuracy": 3,

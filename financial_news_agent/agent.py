@@ -2,15 +2,15 @@
 
 import os
 import json
+import logging
 from openai import OpenAI
-from dotenv import load_dotenv
 from .traceability import TraceabilityTracker
 from .news_tool import get_tool_schema, execute_tool
 from .evaluator import evaluate_response
 from .context_manager import manage_context, compress_tool_result, load_config
+from .retry_manager import RetryConfig, decide_retry_strategy, build_fix_prompt, build_redo_prompt
 
-# Load environment variables from .env file
-load_dotenv()
+logger = logging.getLogger(__name__)
 
 
 def rewrite_query_with_context(user_query: str, messages: list, client: OpenAI) -> str:
@@ -103,11 +103,11 @@ REWRITTEN QUERY:"""
         if rewritten.startswith("'") and rewritten.endswith("'"):
             rewritten = rewritten[1:-1]
 
-        print(f"Query rewriting: '{user_query}' → '{rewritten}'")
+        logger.debug(f"Query rewriting: '{user_query}' → '{rewritten}'")
         return rewritten
 
     except Exception as e:
-        print(f"Query rewriting failed: {e}, using original query")
+        logger.debug(f"Query rewriting failed: {e}, using original query")
         # Fallback: return original query if rewriting fails
         return user_query
 
@@ -141,7 +141,7 @@ def run_agent(user_query: str, messages: list) -> tuple[dict, list]:
     total_tokens = 0  # Track cumulative token usage
 
     for iteration in range(10):
-        print(f"\n[Iteration {iteration + 1}]")
+        logger.debug(f"[Iteration {iteration + 1}]")
 
         # Manage context window before LLM call
         messages = manage_context(messages, total_tokens, client, config)
@@ -159,14 +159,14 @@ def run_agent(user_query: str, messages: list) -> tuple[dict, list]:
             # Track token usage from API response
             if hasattr(response, 'usage') and response.usage:
                 total_tokens = response.usage.total_tokens
-                print(f"Token usage: {total_tokens}")
+                logger.debug(f"Token usage: {total_tokens}")
 
             assistant_message = response.choices[0].message
             finish_reason = response.choices[0].finish_reason
 
-            print(f"Finish reason: {finish_reason}")
-            print(f"Has tool calls: {bool(assistant_message.tool_calls)}")
-            print(f"Content: {assistant_message.content[:100] if assistant_message.content else 'None'}...")
+            logger.debug(f"Finish reason: {finish_reason}")
+            logger.debug(f"Has tool calls: {bool(assistant_message.tool_calls)}")
+            logger.debug(f"Content: {assistant_message.content[:100] if assistant_message.content else 'None'}...")
 
             # Add assistant message to conversation
             messages.append({
@@ -219,7 +219,7 @@ def run_agent(user_query: str, messages: list) -> tuple[dict, list]:
                 break
 
         except Exception as e:
-            print(f"Error in agent loop: {e}")
+            logger.error(f"Error in agent loop: {e}")
             final_answer = f"Error occurred: {str(e)}"
             break
 
@@ -257,13 +257,6 @@ def run_agent_with_retry(user_query: str, messages: list) -> tuple[dict, list]:
     Returns:
         Tuple of (result dict, updated messages list)
     """
-    from .retry_manager import (
-        RetryConfig,
-        decide_retry_strategy,
-        build_fix_prompt,
-        build_redo_prompt
-    )
-
     config = RetryConfig()
 
     # Track retry attempts
@@ -306,8 +299,8 @@ def run_agent_with_retry(user_query: str, messages: list) -> tuple[dict, list]:
                     result["retry_history"] = retry_history
                 return result, messages
 
-            print(f"\n[重试 {attempt + 1}/{config.max_attempts}] 策略: {strategy.upper()}")
-            print(f"原因: 总分={evaluation['overall']:.1f}, 准确性={evaluation.get('accuracy', 0)}/10")
+            logger.info(f"[Retry {attempt + 1}/{config.max_attempts}] Strategy: {strategy.upper()}")
+            logger.info(f"Reason: Overall={evaluation['overall']:.1f}, Accuracy={evaluation.get('accuracy', 0)}/10")
 
             # Execute retry strategy
             if strategy == "fix":
@@ -324,7 +317,7 @@ def run_agent_with_retry(user_query: str, messages: list) -> tuple[dict, list]:
             attempt += 1
 
         except Exception as e:
-            print(f"重试过程中出错 (尝试 {attempt}): {e}")
+            logger.error(f"Error during retry (attempt {attempt}): {e}")
             if attempt == 0:
                 # First attempt failed, re-raise
                 raise
@@ -335,7 +328,7 @@ def run_agent_with_retry(user_query: str, messages: list) -> tuple[dict, list]:
                 return previous_result, previous_messages
 
     # Max attempts exhausted
-    print(f"\n[警告] 已达到最大重试次数 ({config.max_attempts})")
+    logger.warning(f"Maximum retry attempts reached ({config.max_attempts})")
     if config.show_attempts and retry_history:
         result["retry_history"] = retry_history
     return result, messages

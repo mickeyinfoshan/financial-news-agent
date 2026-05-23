@@ -7,7 +7,6 @@ This module provides functions to manage the conversation context window by:
 """
 
 import os
-import json
 import logging
 from typing import Optional
 from openai import OpenAI

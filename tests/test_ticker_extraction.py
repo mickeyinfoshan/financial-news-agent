@@ -1,6 +1,5 @@
 """Tests for ticker extraction logic."""
 
-import pytest
 from financial_news_agent.news_tool import _extract_ticker, COMMON_TICKERS
 
 

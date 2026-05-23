@@ -1,7 +1,7 @@
 """Unit tests for context_manager module."""
 
-import pytest
 from unittest.mock import Mock, patch
+
 from financial_news_agent.context_manager import (
     compress_tool_result,
     summarize_history,

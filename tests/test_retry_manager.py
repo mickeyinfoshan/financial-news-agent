@@ -1,6 +1,5 @@
 """Tests for retry_manager module."""
 
-import pytest
 from financial_news_agent.retry_manager import (
     RetryConfig,
     decide_retry_strategy,

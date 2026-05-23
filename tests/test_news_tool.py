@@ -1,7 +1,9 @@
 """Tests for news_tool module."""
 
+import requests
+
 import pytest
-from datetime import datetime
+
 from financial_news_agent.news_tool import (
     _search_newsapi,
     _search_finnhub_news,
@@ -81,7 +83,6 @@ class TestSearchSymbolFinnhub:
         mock_get = mocker.patch('requests.get')
         mock_sleep = mocker.patch('time.sleep')
 
-        import requests
         mock_get.side_effect = requests.exceptions.Timeout("Timeout")
 
         result = _search_symbol_finnhub("test_timeout")
@@ -168,7 +169,6 @@ class TestSearchFinnhubNews:
     def test_api_error(self, mocker, mock_env_vars):
         """Test handling of API errors."""
         mock_get = mocker.patch('requests.get')
-        import requests
         mock_get.side_effect = requests.exceptions.RequestException("Network error")
 
         mocker.patch('financial_news_agent.news_tool._extract_ticker', return_value="NVDA")

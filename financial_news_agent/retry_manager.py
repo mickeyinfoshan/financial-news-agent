@@ -1,10 +1,6 @@
 """Retry/fix mechanism for low-quality responses."""
 
 import os
-from typing import Tuple
-from dotenv import load_dotenv
-
-load_dotenv()
 
 
 class RetryConfig:

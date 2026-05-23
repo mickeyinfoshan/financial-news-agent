@@ -9,13 +9,9 @@ from typing import List, Dict, Optional
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from functools import lru_cache
 import requests
-from dotenv import load_dotenv
 
 # Configure logging
 logger = logging.getLogger(__name__)
-
-# Load environment variables from .env file
-load_dotenv()
 
 # Common company to ticker mapping (fast path for frequent queries)
 # Reduced to most common companies; API lookup handles the rest
