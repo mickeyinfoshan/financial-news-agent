@@ -13,6 +13,105 @@ from .context_manager import manage_context, compress_tool_result, load_config
 load_dotenv()
 
 
+def rewrite_query_with_context(user_query: str, messages: list, client: OpenAI) -> str:
+    """
+    Rewrite user query to be self-contained using conversation context.
+
+    Handles multi-turn conversations where queries contain pronouns or implicit
+    references that need context from previous messages.
+
+    Args:
+        user_query: The latest user query (may contain pronouns)
+        messages: Full conversation history
+        client: OpenAI client for rewriting
+
+    Returns:
+        str: Rewritten query that is self-contained and clear
+    """
+    # Edge case 1: First turn (only system message exists)
+    # No context needed, return original query
+    if len(messages) <= 1:
+        return user_query
+
+    # Edge case 2: Query already seems self-contained
+    # Check for pronouns and implicit references
+    pronouns = ['their', 'its', 'it', 'they', 'them', 'this', 'that', 'these', 'those']
+    query_lower = user_query.lower()
+    has_pronouns = any(f' {pronoun} ' in f' {query_lower} ' or
+                      query_lower.startswith(f'{pronoun} ') or
+                      query_lower.endswith(f' {pronoun}')
+                      for pronoun in pronouns)
+
+    # If no pronouns and query is reasonably long, likely self-contained
+    if not has_pronouns and len(user_query.split()) > 3:
+        return user_query
+
+    # Build context from recent conversation (last 3-5 exchanges)
+    # Exclude system message, focus on user-assistant exchanges
+    context_messages = []
+    for msg in messages[1:]:  # Skip system message
+        role = msg.get("role", "")
+        content = msg.get("content", "")
+
+        if role == "user" and content:
+            context_messages.append(f"User: {content}")
+        elif role == "assistant" and content:
+            # Truncate long assistant responses
+            content_preview = content[:300] if len(content) > 300 else content
+            context_messages.append(f"Assistant: {content_preview}")
+
+    # Limit to last 6 messages (3 exchanges) to avoid token bloat
+    recent_context = context_messages[-6:] if len(context_messages) > 6 else context_messages
+    context_text = "\n".join(recent_context)
+
+    rewrite_prompt = f"""Given the conversation context below, rewrite the user's latest query to be self-contained and clear.
+
+CONVERSATION CONTEXT:
+{context_text}
+
+LATEST USER QUERY:
+{user_query}
+
+Rewrite the query so it can be understood without the conversation context. Replace pronouns with specific entities. Keep it concise (1-2 sentences max).
+
+Examples:
+- "What about their competitors?" → "What are Apple's main competitors?"
+- "How is it performing?" → "How is Tesla's stock performing?"
+- "Tell me about that acquisition" → "Tell me about Microsoft's acquisition of Activision"
+
+REWRITTEN QUERY:"""
+
+    try:
+        response = client.chat.completions.create(
+            model=os.getenv("OPENAI_MODEL", "gpt-4.5"),
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You are an expert at rewriting queries to be self-contained. Output only the rewritten query, nothing else."
+                },
+                {"role": "user", "content": rewrite_prompt}
+            ],
+            temperature=0.3,
+            max_tokens=150
+        )
+
+        rewritten = response.choices[0].message.content.strip()
+
+        # Remove quotes if LLM wrapped the response
+        if rewritten.startswith('"') and rewritten.endswith('"'):
+            rewritten = rewritten[1:-1]
+        if rewritten.startswith("'") and rewritten.endswith("'"):
+            rewritten = rewritten[1:-1]
+
+        print(f"Query rewriting: '{user_query}' → '{rewritten}'")
+        return rewritten
+
+    except Exception as e:
+        print(f"Query rewriting failed: {e}, using original query")
+        # Fallback: return original query if rewriting fails
+        return user_query
+
+
 def run_agent(user_query: str, messages: list) -> tuple[dict, list]:
     """
     Run the financial news agent.
@@ -128,8 +227,11 @@ def run_agent(user_query: str, messages: list) -> tuple[dict, list]:
     if final_answer is None:
         final_answer = "Agent reached maximum iterations without completing the analysis."
 
-    # Self-evaluate the response
-    evaluation = evaluate_response(final_answer, tracker)
+    # Rewrite query for evaluation (handles multi-turn context)
+    rewritten_query = rewrite_query_with_context(user_query, messages, client)
+
+    # Self-evaluate the response with rewritten query
+    evaluation = evaluate_response(final_answer, tracker, user_query=rewritten_query)
 
     # Return structured result and updated messages
     return {
