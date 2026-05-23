@@ -269,7 +269,7 @@ class TestToolSchema:
 
         result = execute_tool("search_financial_news", {"query": "nvidia", "days_back": 7})
 
-        mock_search.assert_called_once_with("nvidia", 7)
+        mock_search.assert_called_once_with("nvidia", 7, None)
         assert result == [{"title": "Test"}]
 
     def test_execute_tool_unknown(self):

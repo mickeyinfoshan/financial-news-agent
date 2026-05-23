@@ -56,12 +56,12 @@ class TestTickerExtraction:
 
     def test_unknown_company_fallback(self):
         """Test fallback behavior for unknown companies."""
-        # Should return uppercase version of query
+        # Should return first word uppercase as fallback
         result = _extract_ticker("unknown_company")
         assert result == "UNKNOWN_COMPANY"
 
         result = _extract_ticker("some random text")
-        assert result == "SOME RANDOM TEXT"
+        assert result == "SOME"
 
     def test_api_lookup_with_mock(self, mocker, mock_env_vars):
         """Test that API lookup is called for non-dictionary companies."""
