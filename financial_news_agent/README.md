@@ -16,8 +16,10 @@ Main application code. All core business logic lives here.
 - `agent.py` - Main agent loop with LLM orchestration and tool calling
 - `news_tool.py` - Multi-source news retrieval (NewsAPI + Finnhub with ticker lookup)
 - `evaluator.py` - Self-evaluation logic for quality validation
+- `retry_manager.py` - Automatic retry/fix mechanism for low-quality responses
 - `context_manager.py` - Context window management with summarization
 - `traceability.py` - Source tracking and audit trail for all agent actions
+- `utils.py` - Shared utility functions (citation extraction)
 
 ## Key Concepts
 

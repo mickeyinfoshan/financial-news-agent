@@ -16,6 +16,7 @@ Quality assurance and validation. All formal tests belong here.
 - `test_context_manager.py` - Context window management tests
 - `test_news_tool.py` - News search and API integration tests
 - `test_ticker_extraction.py` - Ticker symbol extraction tests
+- `test_retry_manager.py` - Retry/fix mechanism tests
 - `test_integration.py` - End-to-end integration tests
 
 ## Running Tests
