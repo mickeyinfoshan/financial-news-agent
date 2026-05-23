@@ -126,7 +126,11 @@ def get_tool_schema() -> dict:
                 "properties": {
                     "query": {
                         "type": "string",
-                        "description": "Search query - company name, stock ticker, or industry (e.g., 'NVIDIA', 'Tesla', 'semiconductor industry')"
+                        "description": "Full search query with keywords (e.g., 'Tesla earnings deliveries', 'NVIDIA AI chips', 'semiconductor industry trends')"
+                    },
+                    "company_name": {
+                        "type": "string",
+                        "description": "Company name for ticker lookup (e.g., 'Tesla', 'Goldman Sachs'). Only provide if searching for a specific company. Leave empty for industry/general queries."
                     },
                     "days_back": {
                         "type": "integer",
@@ -148,8 +152,9 @@ def _extract_ticker(query: str) -> str:
     1. Check for explicit ticker in parentheses
     2. Check if query is already a ticker
     3. Try common tickers dictionary (fast path for frequent queries)
-    4. Try Finnhub Symbol Search API (primary lookup method)
-    5. Fallback to query as-is
+    4. Extract first 1-2 words if query is too long (prevents 422 errors)
+    5. Try Finnhub Symbol Search API (primary lookup method)
+    6. Fallback to first word
 
     Args:
         query: Search query (company name, ticker, or mixed)
@@ -171,13 +176,25 @@ def _extract_ticker(query: str) -> str:
     if query_lower in COMMON_TICKERS:
         return COMMON_TICKERS[query_lower]
 
+    # If query is too long (>50 chars or >3 words), extract company name
+    # This prevents 422 errors from Finnhub Symbol Search API
+    words = query.strip().split()
+    if len(query) > 50 or len(words) > 3:
+        # Take first word as company name
+        company_name = words[0] if words else query.strip()
+        # If second word is also capitalized, include it (e.g., "Goldman Sachs")
+        if len(words) > 1 and words[1][0].isupper():
+            company_name = f"{words[0]} {words[1]}"
+    else:
+        company_name = query.strip()
+
     # Try dynamic lookup via Finnhub Symbol Search API (primary method)
-    symbol = _search_symbol_finnhub(query)
+    symbol = _search_symbol_finnhub(company_name)
     if symbol:
         return symbol
 
-    # Final fallback: return query as-is (uppercase)
-    return query.strip().upper()
+    # Final fallback: return first word as ticker (uppercase)
+    return words[0].strip().upper() if words else query.strip().upper()
 
 
 def _search_newsapi(query: str, days_back: int = 7) -> List[Dict[str, str]]:
@@ -240,13 +257,14 @@ def _search_newsapi(query: str, days_back: int = 7) -> List[Dict[str, str]]:
         return []
 
 
-def _search_finnhub_news(query: str, days_back: int = 7) -> List[Dict[str, str]]:
+def _search_finnhub_news(query: str, days_back: int = 7, company_name: str = None) -> List[Dict[str, str]]:
     """
     Search for financial news using Finnhub.
 
     Args:
         query: Search query (company name or ticker)
         days_back: Number of days to search back
+        company_name: Optional company name for ticker lookup (if not provided, uses query)
 
     Returns:
         List of news articles with metadata
@@ -256,8 +274,8 @@ def _search_finnhub_news(query: str, days_back: int = 7) -> List[Dict[str, str]]
         logger.warning("FINNHUB_API_KEY not set, skipping Finnhub")
         return []
 
-    # Extract ticker from query
-    ticker = _extract_ticker(query)
+    # Extract ticker from company_name if provided, otherwise from query
+    ticker = _extract_ticker(company_name if company_name else query)
 
     # Calculate date range
     to_date = datetime.now()
@@ -301,7 +319,7 @@ def _search_finnhub_news(query: str, days_back: int = 7) -> List[Dict[str, str]]
         return []
 
 
-def search_financial_news(query: str, days_back: int = 7) -> List[Dict[str, str]]:
+def search_financial_news(query: str, days_back: int = 7, company_name: str = None) -> List[Dict[str, str]]:
     """
     Search for financial news using both NewsAPI and Finnhub.
 
@@ -311,6 +329,7 @@ def search_financial_news(query: str, days_back: int = 7) -> List[Dict[str, str]
     Args:
         query: Search query (company, ticker, or industry)
         days_back: Number of days to search back
+        company_name: Optional company name for Finnhub ticker lookup
 
     Returns:
         List of news articles with metadata from both sources.
@@ -323,7 +342,7 @@ def search_financial_news(query: str, days_back: int = 7) -> List[Dict[str, str]
     with ThreadPoolExecutor(max_workers=2) as executor:
         futures = {
             executor.submit(_search_newsapi, query, days_back): "newsapi",
-            executor.submit(_search_finnhub_news, query, days_back): "finnhub"
+            executor.submit(_search_finnhub_news, query, days_back, company_name): "finnhub"
         }
 
         for future in as_completed(futures):
@@ -381,6 +400,7 @@ def execute_tool(tool_name: str, arguments: dict) -> List[Dict[str, str]]:
     if tool_name == "search_financial_news":
         query = arguments.get("query", "")
         days_back = arguments.get("days_back", 7)
-        return search_financial_news(query, days_back)
+        company_name = arguments.get("company_name")
+        return search_financial_news(query, days_back, company_name)
     else:
         raise ValueError(f"Unknown tool: {tool_name}")

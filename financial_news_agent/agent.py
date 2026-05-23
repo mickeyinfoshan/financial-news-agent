@@ -12,15 +12,16 @@ from .evaluator import evaluate_response
 load_dotenv()
 
 
-def run_agent(user_query: str) -> dict:
+def run_agent(user_query: str, messages: list) -> tuple[dict, list]:
     """
     Run the financial news agent.
 
     Args:
         user_query: User's question about a company or industry
+        messages: Existing conversation history (includes system message)
 
     Returns:
-        Dict with answer, sources, evaluation, and trace
+        Tuple of (result dict, updated messages list)
     """
     client = OpenAI(
         api_key=os.getenv("OPENAI_API_KEY"),
@@ -28,24 +29,8 @@ def run_agent(user_query: str) -> dict:
     )
     tracker = TraceabilityTracker()
 
-    # System prompt
-    system_message = {
-        "role": "system",
-        "content": """You are a financial news analyst AI agent. Your job is to:
-1. Search for recent financial news about the company or industry the user asks about
-2. Analyze the news to create a coherent storyline of what has been happening
-3. Provide future impact analysis based on the trends you observe
-
-Always use the search_financial_news tool to gather information before answering.
-Be thorough - you can call the tool multiple times with different queries if needed.
-Base your analysis strictly on the sources you find."""
-    }
-
-    # Initialize conversation
-    messages = [
-        system_message,
-        {"role": "user", "content": user_query}
-    ]
+    # Append new user query to existing conversation
+    messages.append({"role": "user", "content": user_query})
 
     # Tool definitions
     tools = [get_tool_schema()]
@@ -129,7 +114,7 @@ Base your analysis strictly on the sources you find."""
     # Self-evaluate the response
     evaluation = evaluate_response(final_answer, tracker)
 
-    # Return structured result
+    # Return structured result and updated messages
     return {
         "answer": final_answer,
         "sources": tracker.sources,
@@ -137,4 +122,4 @@ Base your analysis strictly on the sources you find."""
         "reasoning_steps": tracker.reasoning_steps,
         "evaluation": evaluation,
         "trace": tracker.get_trace()
-    }
+    }, messages
