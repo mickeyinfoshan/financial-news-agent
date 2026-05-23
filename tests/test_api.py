@@ -1,7 +1,8 @@
 """Tests for FastAPI endpoints."""
 
 import pytest
-from unittest.mock import patch, MagicMock
+import json
+from unittest.mock import patch, MagicMock, AsyncMock
 from fastapi.testclient import TestClient
 
 from financial_news_agent.api.main import app
@@ -251,3 +252,264 @@ def test_empty_query_validation(client):
         json={"query": ""}
     )
     assert response.status_code == 422  # Validation error
+
+
+@pytest.fixture
+def mock_agent_stream():
+    """Mock the streaming agent function."""
+    async def mock_stream_generator(query, messages):
+        """Generate mock streaming events."""
+        # Agent start
+        yield {"event": "agent_start", "data": {"query": query}}
+
+        # Iteration 1
+        yield {"event": "iteration_start", "data": {"iteration": 1}}
+
+        # Tool call
+        yield {
+            "event": "tool_call_start",
+            "data": {
+                "tool_name": "search_financial_news",
+                "arguments": {"query": "test", "company_name": "Tesla"},
+                "iteration": 1
+            }
+        }
+        yield {
+            "event": "tool_call_complete",
+            "data": {
+                "tool_name": "search_financial_news",
+                "result_summary": "Retrieved 20 articles",
+                "article_count": 20,
+                "iteration": 1
+            }
+        }
+
+        # Iteration 2 - final answer
+        yield {"event": "iteration_start", "data": {"iteration": 2}}
+
+        # Stream tokens
+        tokens = ["Test", " answer", " with", " streaming"]
+        for token in tokens:
+            yield {"event": "token", "data": {"content": token, "iteration": 2}}
+
+        # Evaluation
+        yield {
+            "event": "evaluation",
+            "data": {
+                "overall": 8.5,
+                "accuracy": 8,
+                "relevance": 9,
+                "coherence": 8,
+                "reasonableness": 9
+            }
+        }
+
+        # Done
+        yield {
+            "event": "done",
+            "data": {
+                "result": {
+                    "answer": "Test answer with streaming",
+                    "sources": [{"title": "Test", "url": "http://test.com"}],
+                    "evaluation": {"overall": 8.5},
+                    "tool_calls": [],
+                    "reasoning_steps": [],
+                    "trace": {}
+                },
+                "messages": [
+                    {"role": "system", "content": "System"},
+                    {"role": "user", "content": query},
+                    {"role": "assistant", "content": "Test answer with streaming"}
+                ]
+            }
+        }
+
+    with patch("financial_news_agent.api.routes.run_agent_with_retry_stream") as mock:
+        mock.side_effect = mock_stream_generator
+        yield mock
+
+
+def test_query_session_stream(client, mock_agent_stream):
+    """Test streaming query endpoint."""
+    # Create session
+    create_response = client.post("/api/v1/session/create", json={})
+    session_id = create_response.json()["session_id"]
+
+    # Stream query
+    with client.stream(
+        "POST",
+        f"/api/v1/session/{session_id}/query/stream",
+        json={"query": "What's happening with Tesla?"}
+    ) as response:
+        assert response.status_code == 200
+        assert response.headers["content-type"] == "text/event-stream; charset=utf-8"
+
+        events = []
+        for line in response.iter_lines():
+            if line.startswith("data: "):
+                event_data = json.loads(line[6:])
+                events.append(event_data)
+
+        # Verify event sequence
+        assert len(events) > 0
+        assert events[0]["event"] == "agent_start"
+        assert events[0]["data"]["query"] == "What's happening with Tesla?"
+
+        # Check for key event types
+        event_types = [e["event"] for e in events]
+        assert "agent_start" in event_types
+        assert "iteration_start" in event_types
+        assert "tool_call_start" in event_types
+        assert "tool_call_complete" in event_types
+        assert "token" in event_types
+        assert "evaluation" in event_types
+        assert "done" in event_types
+
+        # Verify token events
+        token_events = [e for e in events if e["event"] == "token"]
+        assert len(token_events) == 4
+        token_content = "".join([e["data"]["content"] for e in token_events])
+        assert token_content == "Test answer with streaming"
+
+        # Verify done event has result
+        done_event = [e for e in events if e["event"] == "done"][0]
+        assert "result" in done_event["data"]
+        assert "messages" in done_event["data"]
+        assert done_event["data"]["result"]["answer"] == "Test answer with streaming"
+
+
+def test_query_session_stream_nonexistent(client):
+    """Test streaming query with nonexistent session."""
+    response = client.post(
+        "/api/v1/session/nonexistent-id/query/stream",
+        json={"query": "test"}
+    )
+    assert response.status_code == 404
+
+
+def test_query_session_stream_with_retry(client):
+    """Test streaming query with retry event."""
+    async def mock_stream_with_retry(query, messages):
+        """Generate mock streaming events with retry."""
+        yield {"event": "agent_start", "data": {"query": query}}
+        yield {"event": "iteration_start", "data": {"iteration": 1}}
+
+        # First attempt - low score
+        yield {"event": "token", "data": {"content": "Bad answer", "iteration": 1}}
+        yield {
+            "event": "evaluation",
+            "data": {"overall": 4.0, "accuracy": 4, "relevance": 4, "coherence": 4, "reasonableness": 4}
+        }
+        yield {
+            "event": "done",
+            "data": {
+                "result": {"answer": "Bad answer", "sources": [], "evaluation": {"overall": 4.0}},
+                "messages": []
+            }
+        }
+
+        # Retry event
+        yield {
+            "event": "retry",
+            "data": {
+                "attempt": 2,
+                "previous_score": 4.0,
+                "strategy": "fix",
+                "reason": "Quality below threshold (overall: 4.0)"
+            }
+        }
+
+        # Second attempt - better
+        yield {"event": "iteration_start", "data": {"iteration": 2}}
+        yield {"event": "token", "data": {"content": "Better answer", "iteration": 2}}
+        yield {
+            "event": "evaluation",
+            "data": {"overall": 8.0, "accuracy": 8, "relevance": 8, "coherence": 8, "reasonableness": 8}
+        }
+        yield {
+            "event": "done",
+            "data": {
+                "result": {
+                    "answer": "Better answer",
+                    "sources": [],
+                    "evaluation": {"overall": 8.0},
+                    "retry_history": [{"attempt": 1, "previous_score": 4.0, "strategy": "fix"}]
+                },
+                "messages": []
+            }
+        }
+
+    # Create session
+    create_response = client.post("/api/v1/session/create", json={})
+    session_id = create_response.json()["session_id"]
+
+    with patch("financial_news_agent.api.routes.run_agent_with_retry_stream") as mock:
+        mock.return_value = mock_stream_with_retry("test", [])
+
+        with client.stream(
+            "POST",
+            f"/api/v1/session/{session_id}/query/stream",
+            json={"query": "test"}
+        ) as response:
+            events = []
+            for line in response.iter_lines():
+                if line.startswith("data: "):
+                    events.append(json.loads(line[6:]))
+
+            # Verify retry event exists
+            event_types = [e["event"] for e in events]
+            assert "retry" in event_types
+
+            retry_event = [e for e in events if e["event"] == "retry"][0]
+            assert retry_event["data"]["attempt"] == 2
+            assert retry_event["data"]["strategy"] == "fix"
+            assert retry_event["data"]["previous_score"] == 4.0
+
+
+def test_query_session_stream_error_handling(client):
+    """Test streaming query error handling."""
+    async def mock_stream_with_error(query, messages):
+        """Generate mock streaming events with error."""
+        yield {"event": "agent_start", "data": {"query": query}}
+        yield {"event": "iteration_start", "data": {"iteration": 1}}
+
+        # Error event
+        yield {
+            "event": "error",
+            "data": {
+                "message": "Test error occurred",
+                "iteration": 1
+            }
+        }
+
+        yield {
+            "event": "done",
+            "data": {
+                "result": {"answer": "Error occurred: Test error occurred", "sources": [], "evaluation": {"overall": 1.0}},
+                "messages": []
+            }
+        }
+
+    # Create session
+    create_response = client.post("/api/v1/session/create", json={})
+    session_id = create_response.json()["session_id"]
+
+    with patch("financial_news_agent.api.routes.run_agent_with_retry_stream") as mock:
+        mock.return_value = mock_stream_with_error("test", [])
+
+        with client.stream(
+            "POST",
+            f"/api/v1/session/{session_id}/query/stream",
+            json={"query": "test"}
+        ) as response:
+            events = []
+            for line in response.iter_lines():
+                if line.startswith("data: "):
+                    events.append(json.loads(line[6:]))
+
+            # Verify error event exists
+            event_types = [e["event"] for e in events]
+            assert "error" in event_types
+
+            error_event = [e for e in events if e["event"] == "error"][0]
+            assert "Test error occurred" in error_event["data"]["message"]
