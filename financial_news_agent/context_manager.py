@@ -8,8 +8,11 @@ This module provides functions to manage the conversation context window by:
 
 import os
 import logging
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 from openai import OpenAI
+
+if TYPE_CHECKING:
+    from .traceability import TraceabilityTracker
 
 logger = logging.getLogger(__name__)
 
@@ -148,7 +151,8 @@ def manage_context(
     messages: list,
     total_tokens: int,
     client: OpenAI,
-    config: Optional[dict] = None
+    config: Optional[dict] = None,
+    tracker: Optional['TraceabilityTracker'] = None
 ) -> list:
     """Main context management function - checks and compresses context.
 
@@ -161,6 +165,7 @@ def manage_context(
         total_tokens: Current token count from OpenAI API response.usage
         client: OpenAI client for summarization
         config: Optional config dict (uses load_config() if None)
+        tracker: Optional traceability tracker for timing instrumentation
 
     Returns:
         list: Potentially modified messages list (with summarization if needed)
@@ -191,8 +196,18 @@ def manage_context(
         logger.info(f"Context threshold exceeded: {', '.join(reason)}")
         logger.info("Summarizing conversation history...")
 
-        # Generate summary
-        summary = summarize_history(messages, client, config["recent_messages"])
+        # Generate summary with timing
+        summary_metadata = {
+            "reason": "token_exceeded" if token_exceeded else "message_exceeded",
+            "tokens": total_tokens,
+            "messages": message_count
+        }
+
+        if tracker:
+            with tracker.time_operation("Conversation Summarization", "llm_call", summary_metadata):
+                summary = summarize_history(messages, client, config["recent_messages"])
+        else:
+            summary = summarize_history(messages, client, config["recent_messages"])
 
         if summary:
             # Replace middle messages with summary

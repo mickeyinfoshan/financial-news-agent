@@ -1,15 +1,75 @@
 """Traceability tracker for agent operations."""
 
-from typing import Any
+import logging
+from time import perf_counter
+from typing import Any, Optional
+from contextlib import contextmanager
+from threading import Lock
+
+logger = logging.getLogger(__name__)
+
+
+class TimingNode:
+    """Represents a single timing measurement in the hierarchy."""
+
+    def __init__(self, name: str, category: str, parent: Optional['TimingNode'] = None):
+        self.name = name
+        self.category = category
+        self.parent = parent
+        self.children: list['TimingNode'] = []
+
+        self.start_time: Optional[float] = None
+        self.end_time: Optional[float] = None
+        self.duration: Optional[float] = None
+
+        self.metadata: dict[str, Any] = {}
+        self.error: Optional[str] = None
+
+    def start(self):
+        """Start timing this node."""
+        self.start_time = perf_counter()
+
+    def end(self, error: Optional[str] = None):
+        """End timing this node."""
+        self.end_time = perf_counter()
+        if self.start_time:
+            self.duration = self.end_time - self.start_time
+        self.error = error
+
+    def add_child(self, child: 'TimingNode'):
+        """Add a child timing node."""
+        self.children.append(child)
+
+    def to_dict(self) -> dict:
+        """Convert to dictionary for serialization."""
+        result = {
+            "name": self.name,
+            "category": self.category,
+            "duration_ms": round(self.duration * 1000, 2) if self.duration else None,
+            "metadata": self.metadata,
+        }
+
+        if self.error:
+            result["error"] = self.error
+
+        if self.children:
+            result["children"] = [child.to_dict() for child in self.children]
+
+        return result
 
 
 class TraceabilityTracker:
-    """Tracks sources, tool calls, and reasoning steps for traceability."""
+    """Tracks sources, tool calls, reasoning steps, and timing for traceability."""
 
     def __init__(self):
         self.sources = []
         self.tool_calls = []
         self.reasoning_steps = []
+
+        # Timing infrastructure
+        self._timing_root: Optional[TimingNode] = None
+        self._timing_stack: list[TimingNode] = []
+        self._lock = Lock()
 
     def add_source(self, source_data: dict):
         """Add a source (news article) to the tracker."""
@@ -37,10 +97,121 @@ class TraceabilityTracker:
         else:
             return {"type": type(result).__name__}
 
-    def get_trace(self) -> dict:
-        """Get complete trace data."""
+    @contextmanager
+    def time_operation(
+        self,
+        name: str,
+        category: str,
+        metadata: Optional[dict] = None
+    ):
+        """Context manager for timing an operation.
+
+        Args:
+            name: Human-readable name (e.g., "LLM Reasoning Call", "NewsAPI Request")
+            category: Category for grouping (e.g., "llm_call", "api_call", "tool_call")
+            metadata: Optional metadata to attach (e.g., {"model": "gpt-4.5", "tokens": 1500})
+
+        Usage:
+            with tracker.time_operation("LLM Reasoning", "llm_call", {"iteration": 1}):
+                response = client.chat.completions.create(...)
+        """
+        with self._lock:
+            parent = self._timing_stack[-1] if self._timing_stack else None
+            node = TimingNode(name, category, parent)
+
+            if metadata:
+                node.metadata.update(metadata)
+
+            if parent:
+                parent.add_child(node)
+            else:
+                # This is the root node
+                self._timing_root = node
+
+            self._timing_stack.append(node)
+
+        node.start()
+        error = None
+
+        try:
+            yield node
+        except Exception as e:
+            error = str(e)
+            raise
+        finally:
+            node.end(error=error)
+
+            # Log slow operations
+            if node.duration:
+                if node.category == "llm_call" and node.duration > 5.0:
+                    logger.warning(f"Slow LLM call: {node.name} took {node.duration:.2f}s")
+                elif node.category == "api_call" and node.duration > 3.0:
+                    logger.warning(f"Slow API call: {node.name} took {node.duration:.2f}s")
+                elif node.category == "request" and node.duration > 30.0:
+                    logger.warning(f"Slow request: {node.name} took {node.duration:.2f}s")
+
+            with self._lock:
+                self._timing_stack.pop()
+
+    def get_timing_summary(self) -> dict:
+        """Get timing summary with key metrics.
+
+        Returns:
+            Dictionary with total time, breakdown by category, and critical path
+        """
+        if not self._timing_root:
+            return {
+                "total_duration_ms": 0,
+                "breakdown": {},
+                "hierarchy": None
+            }
+
+        # Calculate breakdown by category
+        breakdown = {}
+
+        def collect_by_category(node: TimingNode):
+            if node.duration:
+                category = node.category
+                if category not in breakdown:
+                    breakdown[category] = {
+                        "total_ms": 0,
+                        "count": 0,
+                        "operations": []
+                    }
+                breakdown[category]["total_ms"] += node.duration * 1000
+                breakdown[category]["count"] += 1
+                breakdown[category]["operations"].append({
+                    "name": node.name,
+                    "duration_ms": round(node.duration * 1000, 2),
+                    "metadata": node.metadata
+                })
+
+            for child in node.children:
+                collect_by_category(child)
+
+        collect_by_category(self._timing_root)
+
+        # Round totals
+        for category in breakdown:
+            breakdown[category]["total_ms"] = round(breakdown[category]["total_ms"], 2)
+
         return {
+            "total_duration_ms": round(self._timing_root.duration * 1000, 2) if self._timing_root.duration else 0,
+            "breakdown": breakdown,
+            "hierarchy": self._timing_root.to_dict() if self._timing_root else None
+        }
+
+    def get_trace(self) -> dict:
+        """Get complete trace data including timing."""
+        trace = {
             "sources": self.sources,
             "tool_calls": self.tool_calls,
             "reasoning_steps": self.reasoning_steps
         }
+
+        # Add timing data
+        timing_summary = self.get_timing_summary()
+        if timing_summary["total_duration_ms"] > 0:
+            trace["timing"] = timing_summary
+
+        return trace

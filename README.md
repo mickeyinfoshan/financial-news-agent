@@ -51,6 +51,13 @@ Get API keys:
 
 ### 3. Run the Agent
 
+**Web API Server:**
+```bash
+uv run python -m financial_news_agent.api_server
+```
+
+The API will be available at `http://localhost:8000`. Visit `http://localhost:8000/docs` for interactive API documentation.
+
 **Interactive CLI:**
 ```bash
 uv run python -m financial_news_agent
@@ -59,6 +66,93 @@ uv run python -m financial_news_agent
 **Test Script:**
 ```bash
 uv run python .dev_process/test_agent.py
+```
+
+## API Usage
+
+### Quick Start
+
+**Python Client:**
+```python
+import requests
+
+# Create session with initial query (one request)
+response = requests.post(
+    "http://localhost:8000/api/v1/session/create",
+    json={"query": "What's happening with NVIDIA?"}
+)
+result = response.json()
+session_id = result["session_id"]
+print(result["answer"])
+
+# Follow-up question in same session
+response = requests.post(
+    f"http://localhost:8000/api/v1/session/{session_id}/query",
+    json={"query": "What about AMD?"}
+)
+print(response.json()["answer"])
+```
+
+**curl:**
+```bash
+# Create session with query
+curl -X POST http://localhost:8000/api/v1/session/create \
+  -H "Content-Type: application/json" \
+  -d '{"query": "What is happening with Tesla stock?"}'
+
+# Follow-up query (use session_id from above)
+curl -X POST http://localhost:8000/api/v1/session/{session_id}/query \
+  -H "Content-Type: application/json" \
+  -d '{"query": "What about their competitors?"}'
+
+# Streaming query (real-time events)
+curl -N -X POST http://localhost:8000/api/v1/session/{session_id}/query/stream \
+  -H "Content-Type: application/json" \
+  -d '{"query": "What is the outlook for EV stocks?"}'
+
+# List all sessions
+curl http://localhost:8000/api/v1/session/list
+
+# Get session details
+curl http://localhost:8000/api/v1/session/{session_id}
+
+# Delete session
+curl -X DELETE http://localhost:8000/api/v1/session/{session_id}
+```
+
+### API Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/api/v1/session/create` | Create new session (optional initial query) |
+| `POST` | `/api/v1/session/{id}/query` | Ask question in existing session |
+| `POST` | `/api/v1/session/{id}/query/stream` | **Stream response in real-time (SSE)** |
+| `GET` | `/api/v1/session/{id}` | Get session metadata |
+| `GET` | `/api/v1/session/{id}/messages` | Get conversation history |
+| `GET` | `/api/v1/session/list` | List all sessions (paginated) |
+| `DELETE` | `/api/v1/session/{id}` | Delete session |
+| `GET` | `/api/v1/health` | Health check |
+
+**Streaming Support:** The `/query/stream` endpoint returns Server-Sent Events (SSE) in real-time:
+- See tool calls as they happen
+- Watch reasoning steps unfold
+- Get answer tokens as they're generated
+- Monitor evaluation and retry events
+
+See [QUICKSTART_API.md](QUICKSTART_API.md) for streaming examples.
+
+### API Configuration
+
+Add to `.env`:
+```bash
+# API Configuration
+API_HOST=0.0.0.0
+API_PORT=8000
+API_RELOAD=false
+
+# API Settings
+API_CORS_ORIGINS=http://localhost:3000
+API_REQUEST_TIMEOUT_SECONDS=120
 ```
 
 ## Example Usage
@@ -148,13 +242,21 @@ User Query → Agent Loop (LLM + Tools) → Answer → Self-Evaluation
 financial_news_agent/
 ├── __init__.py
 ├── __main__.py          # CLI entry point
+├── api_server.py        # API server entry point
 ├── agent.py             # Main agent loop with retry wrapper
 ├── news_tool.py         # NewsAPI + Finnhub integration
 ├── evaluator.py         # Self-evaluation
 ├── traceability.py      # Source tracking
 ├── retry_manager.py     # Retry/fix mechanism
 ├── context_manager.py   # Context window management
-└── utils.py             # Shared utilities (citation extraction)
+├── config.py            # Configuration management
+├── utils.py             # Shared utilities (citation extraction)
+└── api/                 # FastAPI web service
+    ├── __init__.py
+    ├── main.py          # FastAPI app
+    ├── routes.py        # API endpoints
+    ├── models.py        # Request/response models
+    └── session_manager.py  # Session storage
 ```
 
 ## Response Format
