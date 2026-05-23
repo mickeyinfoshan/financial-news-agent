@@ -26,11 +26,25 @@ def evaluate_response(answer: str, tracker, user_query: str = None) -> dict:
         base_url=os.getenv("OPENAI_BASE_URL")
     )
 
-    # Build evaluation prompt
-    sources_summary = "\n".join([
-        f"- {s.get('title', 'N/A')} ({s.get('source', 'N/A')}, {s.get('date', 'N/A')})"
-        for s in tracker.sources[:10]  # Limit to first 10 sources
-    ])
+    # Extract citations from answer to determine which sources to include
+    import re
+    citations = re.findall(r'\[(\d+)\]', answer)
+    cited_indices = sorted(set(int(c) for c in citations if c.isdigit()))
+
+    # Build evaluation prompt with only cited sources
+    if cited_indices:
+        # Include only cited sources with their citation numbers
+        sources_summary = "\n".join([
+            f"[{idx}] {tracker.sources[idx-1].get('title', 'N/A')} ({tracker.sources[idx-1].get('source', 'N/A')}, {tracker.sources[idx-1].get('date', 'N/A')})"
+            for idx in cited_indices
+            if 1 <= idx <= len(tracker.sources)
+        ])
+    else:
+        # Fallback: use first 10 sources if no citations found
+        sources_summary = "\n".join([
+            f"- {s.get('title', 'N/A')} ({s.get('source', 'N/A')}, {s.get('date', 'N/A')})"
+            for s in tracker.sources[:10]
+        ])
 
     # Include user query if provided
     query_section = ""
@@ -49,7 +63,7 @@ SOURCES USED:
 {sources_summary if sources_summary else "No sources"}
 
 EVALUATION CRITERIA (rate each 1-10, where 10 is excellent):
-1. Accuracy: Does the information in the answer match the sources provided?
+1. Accuracy: Does the information in the answer match the sources provided? Are all citations [1], [2], etc. valid and supported by the listed sources?
 2. Relevance: Does the answer directly address the user's query? Are the sources relevant?
 3. Coherence: Does the storyline flow logically and make sense?
 4. Reasonableness: Is the future impact analysis plausible and well-reasoned?
