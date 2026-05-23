@@ -98,8 +98,8 @@ Feedback: Strong analysis backed by relevant sources...
 If the initial response scores below threshold (< 6.0), the system automatically retries:
 
 ```
-[重试 1/1] 策略: FIX
-原因: 总分=5.5, 准确性=7/10
+[Retry 1/1] Strategy: FIX
+Reason: Overall=5.5, Accuracy=7/10
 
 Analyzing... (this may take a moment)
 
@@ -109,16 +109,16 @@ ANSWER
 [Improved answer with better coherence and reasoning]
 
 ============================================================
-重试历史
+RETRY HISTORY
 ============================================================
 
-尝试 1:
-  总分: 5.5/10
-  准确性: 7/10
-  相关性: 6/10
-  连贯性: 4/10
-  合理性: 5/10
-  回答预览: [Previous attempt preview]...
+Attempt 1:
+  Overall: 5.5/10
+  Accuracy: 7/10
+  Relevance: 6/10
+  Coherence: 4/10
+  Reasonableness: 5/10
+  Answer Preview: [Previous attempt preview]...
 ```
 
 ## Architecture
@@ -152,7 +152,9 @@ financial_news_agent/
 ├── news_tool.py         # NewsAPI + Finnhub integration
 ├── evaluator.py         # Self-evaluation
 ├── traceability.py      # Source tracking
-└── retry_manager.py     # Retry/fix mechanism
+├── retry_manager.py     # Retry/fix mechanism
+├── context_manager.py   # Context window management
+└── utils.py             # Shared utilities (citation extraction)
 ```
 
 ## Response Format

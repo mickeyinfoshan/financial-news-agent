@@ -53,7 +53,9 @@ financial_news_agent/     # Main source code (flat structure)
 ├── news_tool.py          # News search (NewsAPI + Finnhub)
 ├── traceability.py       # Traceability tracking
 ├── evaluator.py          # Self-evaluation logic
-└── retry_manager.py      # Retry/fix mechanism for low-quality responses
+├── retry_manager.py      # Retry/fix mechanism for low-quality responses
+├── context_manager.py    # Context window management
+└── utils.py              # Shared utility functions (citation extraction)
 
 tests/                    # Formal unit and integration tests
 .dev_process/             # Temporary validation scripts (not committed long-term)
@@ -92,12 +94,22 @@ The system uses a simple agentic loop with these components:
    - Evaluates accuracy, relevance, coherence, and impact analysis
    - Produces scores (1-10 scale) for each dimension
    - Triggers retry mechanism when scores are below threshold
+   - Uses shared citation extraction utility from `utils.py`
 
 5. **Retry/Fix Mechanism** (`retry_manager.py`): Automatic quality improvement
    - Monitors evaluation scores and triggers retries when quality is low
    - **FIX strategy**: Improves existing answer using same sources (for coherence/reasoning issues)
    - **REDO strategy**: Starts fresh with new search (for accuracy/relevance issues)
    - Configurable thresholds and retry limits to control cost
+
+6. **Context Management** (`context_manager.py`): Token optimization
+   - Compresses tool results to reduce token usage
+   - Summarizes old conversation history when approaching limits
+   - Tracks token usage from OpenAI API responses
+
+7. **Utilities** (`utils.py`): Shared helper functions
+   - `extract_citations()`: Extracts citation numbers from text
+   - Eliminates code duplication across modules
 
 ## Implementation Priorities
 
