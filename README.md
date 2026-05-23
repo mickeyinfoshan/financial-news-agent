@@ -4,11 +4,13 @@ AI agent that searches recent financial news and provides analysis with storylin
 
 ## Features
 
-- 🔍 Real-time financial news search via NewsAPI
+- 🔍 Real-time financial news search via NewsAPI and Finnhub
 - 🤖 LLM-powered analysis with OpenAI GPT-4
 - 📊 Storyline generation and future impact analysis
 - ✅ Self-evaluation of response quality
 - 🔗 Full traceability of sources and reasoning
+- 🔄 Automatic retry/fix mechanism for low-quality responses
+- 📈 Smart strategy selection (FIX vs REDO) based on evaluation scores
 
 ## Setup
 
@@ -32,9 +34,20 @@ OPENAI_API_KEY=your-openai-api-key-here
 OPENAI_BASE_URL=https://www.right.codes/codex/v1
 OPENAI_MODEL=gpt-5.5
 NEWS_API_KEY=your-newsapi-key-here
+FINNHUB_API_KEY=your-finnhub-api-key-here
+
+# Optional: Retry/Fix Mechanism
+RETRY_ENABLE=true                    # Enable automatic quality improvement
+RETRY_THRESHOLD_OVERALL=6.0          # Trigger retry if score < 6.0
+RETRY_THRESHOLD_ACCURACY=5.0         # Critical accuracy threshold
+RETRY_MAX_ATTEMPTS=1                 # Max retry attempts (1-3)
+RETRY_STRATEGY=auto                  # auto|fix|redo|disabled
+RETRY_SHOW_ATTEMPTS=true             # Show retry history
 ```
 
-Get a free NewsAPI key at: https://newsapi.org (100 requests/day free tier)
+Get API keys:
+- NewsAPI: https://newsapi.org (100 requests/day free tier)
+- Finnhub: https://finnhub.io (60 requests/minute free tier)
 
 ### 3. Run the Agent
 
@@ -80,14 +93,54 @@ Overall Score: 8.5/10
 Feedback: Strong analysis backed by relevant sources...
 ```
 
+### Automatic Quality Improvement
+
+If the initial response scores below threshold (< 6.0), the system automatically retries:
+
+```
+[重试 1/1] 策略: FIX
+原因: 总分=5.5, 准确性=7/10
+
+Analyzing... (this may take a moment)
+
+============================================================
+ANSWER
+============================================================
+[Improved answer with better coherence and reasoning]
+
+============================================================
+重试历史
+============================================================
+
+尝试 1:
+  总分: 5.5/10
+  准确性: 7/10
+  相关性: 6/10
+  连贯性: 4/10
+  合理性: 5/10
+  回答预览: [Previous attempt preview]...
+```
+
 ## Architecture
 
 ```
-User Query → Agent Loop (LLM + Tools) → Answer → Self-Evaluation → Result
-                  ↓
-         [NewsAPI Search Tool]
-         [Traceability Tracker]
+User Query → Agent Loop (LLM + Tools) → Answer → Self-Evaluation
+                  ↓                                      ↓
+         [NewsAPI + Finnhub]                    Score < Threshold?
+         [Traceability Tracker]                         ↓
+                                                   Retry/Fix
+                                                   ↓        ↓
+                                              FIX (improve)  REDO (restart)
+                                                   ↓        ↓
+                                                   → Result
 ```
+
+### Retry/Fix Mechanism
+
+- **FIX Strategy**: Improves existing answer using same sources (for coherence/reasoning issues)
+- **REDO Strategy**: Starts fresh with new search (for accuracy/relevance issues)
+- **Smart Selection**: Automatically chooses best strategy based on evaluation scores
+- **Cost Control**: Configurable retry limits (default: 1 retry max)
 
 ## Project Structure
 
@@ -95,10 +148,11 @@ User Query → Agent Loop (LLM + Tools) → Answer → Self-Evaluation → Resul
 financial_news_agent/
 ├── __init__.py
 ├── __main__.py          # CLI entry point
-├── agent.py             # Main agent loop
-├── news_tool.py         # NewsAPI integration
+├── agent.py             # Main agent loop with retry wrapper
+├── news_tool.py         # NewsAPI + Finnhub integration
 ├── evaluator.py         # Self-evaluation
-└── traceability.py      # Source tracking
+├── traceability.py      # Source tracking
+└── retry_manager.py     # Retry/fix mechanism
 ```
 
 ## Response Format
@@ -132,9 +186,38 @@ The agent returns structured data with full traceability:
     "reasonableness": 9,
     "overall": 8.5,
     "feedback": "..."
-  }
+  },
+  "retry_history": [
+    {
+      "attempt": 1,
+      "evaluation": {"overall": 5.5, "accuracy": 7, ...},
+      "answer": "Previous attempt..."
+    }
+  ]
 }
 ```
+
+## Configuration
+
+### Retry/Fix Mechanism
+
+Control automatic quality improvement via environment variables:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `RETRY_ENABLE` | `true` | Enable/disable retry mechanism |
+| `RETRY_THRESHOLD_OVERALL` | `6.0` | Trigger retry if overall score < threshold |
+| `RETRY_THRESHOLD_ACCURACY` | `5.0` | Critical accuracy threshold |
+| `RETRY_MAX_ATTEMPTS` | `1` | Maximum retry attempts (1-3 recommended) |
+| `RETRY_STRATEGY` | `auto` | Strategy: `auto`, `fix`, `redo`, or `disabled` |
+| `RETRY_SHOW_ATTEMPTS` | `true` | Show retry history to user |
+
+**Cost Impact**:
+- No retry: 1.0x tokens
+- FIX once: ~1.3x tokens
+- REDO once: ~2.0x tokens
+
+See `.dev_docs/summary/retry-mechanism.md` for detailed documentation.
 
 ## Requirements
 

@@ -242,3 +242,100 @@ def run_agent(user_query: str, messages: list) -> tuple[dict, list]:
         "evaluation": evaluation,
         "trace": tracker.get_trace()
     }, messages
+
+
+def run_agent_with_retry(user_query: str, messages: list) -> tuple[dict, list]:
+    """
+    Run agent with retry/fix mechanism for low-quality responses.
+
+    This is the main entry point that wraps run_agent() with retry logic.
+
+    Args:
+        user_query: User's question
+        messages: Conversation history
+
+    Returns:
+        Tuple of (result dict, updated messages list)
+    """
+    from .retry_manager import (
+        RetryConfig,
+        decide_retry_strategy,
+        build_fix_prompt,
+        build_redo_prompt
+    )
+
+    config = RetryConfig()
+
+    # Track retry attempts
+    attempt = 0
+    retry_history = []  # Store attempts if show_attempts=true
+    previous_result = None
+    previous_messages = None
+
+    while attempt <= config.max_attempts:
+        try:
+            # Run the agent
+            result, messages = run_agent(user_query, messages)
+
+            evaluation = result["evaluation"]
+
+            # Store attempt if configured
+            if config.show_attempts and attempt > 0:
+                retry_history.append({
+                    "attempt": attempt,
+                    "evaluation": evaluation,
+                    "answer": result["answer"]
+                })
+
+            # Check if retry needed
+            if not config.should_retry(evaluation, attempt):
+                # Success or max attempts reached
+                if config.show_attempts and retry_history:
+                    result["retry_history"] = retry_history
+                return result, messages
+
+            # Save current result in case retry fails
+            previous_result = result
+            previous_messages = messages.copy()
+
+            # Decide strategy
+            strategy = decide_retry_strategy(evaluation, result["sources"], config)
+
+            if strategy == "none":
+                if config.show_attempts and retry_history:
+                    result["retry_history"] = retry_history
+                return result, messages
+
+            print(f"\n[重试 {attempt + 1}/{config.max_attempts}] 策略: {strategy.upper()}")
+            print(f"原因: 总分={evaluation['overall']:.1f}, 准确性={evaluation.get('accuracy', 0)}/10")
+
+            # Execute retry strategy
+            if strategy == "fix":
+                # FIX: Continue conversation with improvement prompt
+                fix_prompt = build_fix_prompt(evaluation, user_query)
+                messages.append({"role": "user", "content": fix_prompt})
+
+            elif strategy == "redo":
+                # REDO: Reset to system message + new query
+                system_msg = messages[0]
+                redo_prompt = build_redo_prompt(evaluation, user_query)
+                messages = [system_msg, {"role": "user", "content": redo_prompt}]
+
+            attempt += 1
+
+        except Exception as e:
+            print(f"重试过程中出错 (尝试 {attempt}): {e}")
+            if attempt == 0:
+                # First attempt failed, re-raise
+                raise
+            else:
+                # Retry failed, return previous result
+                if config.show_attempts and retry_history:
+                    previous_result["retry_history"] = retry_history
+                return previous_result, previous_messages
+
+    # Max attempts exhausted
+    print(f"\n[警告] 已达到最大重试次数 ({config.max_attempts})")
+    if config.show_attempts and retry_history:
+        result["retry_history"] = retry_history
+    return result, messages

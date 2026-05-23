@@ -1,6 +1,6 @@
 """CLI entry point for the financial news agent."""
 
-from .agent import run_agent
+from .agent import run_agent_with_retry
 
 
 def main():
@@ -64,7 +64,7 @@ Base your analysis strictly on the sources you find and cite them appropriately.
             print("\nAnalyzing... (this may take a moment)\n")
 
             # Run the agent with conversation history
-            result, messages = run_agent(query, messages)
+            result, messages = run_agent_with_retry(query, messages)
 
             # Display results
             print("=" * 60)
@@ -114,6 +114,22 @@ Base your analysis strictly on the sources you find and cite them appropriately.
             print(f"  - Reasonableness: {eval_data.get('reasonableness', 'N/A')}/10")
             print(f"\nFeedback: {eval_data.get('feedback', 'N/A')}")
             print()
+
+            # Display retry history if available
+            if "retry_history" in result and result["retry_history"]:
+                print("=" * 60)
+                print("重试历史")
+                print("=" * 60)
+                for attempt_data in result["retry_history"]:
+                    print(f"\n尝试 {attempt_data['attempt']}:")
+                    eval_data = attempt_data['evaluation']
+                    print(f"  总分: {eval_data['overall']}/10")
+                    print(f"  准确性: {eval_data.get('accuracy', 0)}/10")
+                    print(f"  相关性: {eval_data.get('relevance', 0)}/10")
+                    print(f"  连贯性: {eval_data.get('coherence', 0)}/10")
+                    print(f"  合理性: {eval_data.get('reasonableness', 0)}/10")
+                    print(f"  回答预览: {attempt_data['answer'][:150]}...")
+                print()
 
     except KeyboardInterrupt:
         print("\n\nGoodbye!")

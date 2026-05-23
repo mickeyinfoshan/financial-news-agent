@@ -16,6 +16,7 @@ Retrospective documentation written after features are implemented.
 - `dynamic-ticker-lookup.md` - Dynamic ticker lookup implementation notes
 - `documentation-update.md` - Documentation update summary
 - `context-window-management-implementation.md` - Context management implementation summary
+- `retry-mechanism.md` - Retry/fix mechanism for automatic quality improvement
 
 ## What Goes Here
 

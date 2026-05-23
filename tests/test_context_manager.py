@@ -40,6 +40,7 @@ class TestCompressToolResult:
 
         assert len(result) == 2
         assert result[0] == {
+            "id": 1,
             "title": "Tesla Stock Rises",
             "source": "Reuters",
             "url": "https://example.com/1",
@@ -73,6 +74,7 @@ class TestCompressToolResult:
 
         assert len(result) == 1
         assert result[0] == {
+            "id": 1,
             "title": "Test",
             "source": "",
             "url": "",
