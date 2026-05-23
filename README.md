@@ -105,6 +105,11 @@ curl -X POST http://localhost:8000/api/v1/session/{session_id}/query \
   -H "Content-Type: application/json" \
   -d '{"query": "What about their competitors?"}'
 
+# Streaming query (real-time events)
+curl -N -X POST http://localhost:8000/api/v1/session/{session_id}/query/stream \
+  -H "Content-Type: application/json" \
+  -d '{"query": "What is the outlook for EV stocks?"}'
+
 # List all sessions
 curl http://localhost:8000/api/v1/session/list
 
@@ -121,11 +126,20 @@ curl -X DELETE http://localhost:8000/api/v1/session/{session_id}
 |--------|----------|-------------|
 | `POST` | `/api/v1/session/create` | Create new session (optional initial query) |
 | `POST` | `/api/v1/session/{id}/query` | Ask question in existing session |
+| `POST` | `/api/v1/session/{id}/query/stream` | **Stream response in real-time (SSE)** |
 | `GET` | `/api/v1/session/{id}` | Get session metadata |
 | `GET` | `/api/v1/session/{id}/messages` | Get conversation history |
 | `GET` | `/api/v1/session/list` | List all sessions (paginated) |
 | `DELETE` | `/api/v1/session/{id}` | Delete session |
 | `GET` | `/api/v1/health` | Health check |
+
+**Streaming Support:** The `/query/stream` endpoint returns Server-Sent Events (SSE) in real-time:
+- See tool calls as they happen
+- Watch reasoning steps unfold
+- Get answer tokens as they're generated
+- Monitor evaluation and retry events
+
+See [QUICKSTART_API.md](QUICKSTART_API.md) for streaming examples.
 
 ### API Configuration
 

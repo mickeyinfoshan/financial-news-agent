@@ -3,7 +3,8 @@
 import os
 import json
 import logging
-from openai import OpenAI
+from typing import AsyncGenerator
+from openai import OpenAI, AsyncOpenAI
 from .traceability import TraceabilityTracker
 from .news_tool import get_tool_schema, execute_tool
 from .evaluator import evaluate_response
@@ -371,3 +372,277 @@ def run_agent_with_retry(user_query: str, messages: list) -> tuple[dict, list]:
     if config.show_attempts and retry_history:
         result["retry_history"] = retry_history
     return result, messages
+
+
+def _merge_tool_call_delta(accumulated: list, deltas: list):
+    """Merge incremental tool call deltas from streaming response."""
+    for delta in deltas:
+        index = delta.index
+
+        # Ensure list is long enough
+        while len(accumulated) <= index:
+            accumulated.append({
+                "id": "",
+                "type": "function",
+                "function": {"name": "", "arguments": ""}
+            })
+
+        # Merge fields
+        if delta.id:
+            accumulated[index]["id"] = delta.id
+        if delta.function:
+            if delta.function.name:
+                accumulated[index]["function"]["name"] += delta.function.name
+            if delta.function.arguments:
+                accumulated[index]["function"]["arguments"] += delta.function.arguments
+
+
+async def run_agent_stream(
+    user_query: str,
+    messages: list
+) -> AsyncGenerator[dict, None]:
+    """
+    Async generator that yields events during agent execution.
+
+    Yields:
+        Event dicts with {"event": type, "data": {...}}
+
+    Final event is always "done" with complete result.
+    """
+    client = AsyncOpenAI(
+        api_key=os.getenv("OPENAI_API_KEY"),
+        base_url=os.getenv("OPENAI_BASE_URL")
+    )
+    tracker = TraceabilityTracker()
+    config = load_config()
+
+    yield {"event": "agent_start", "data": {"query": user_query}}
+
+    messages.append({"role": "user", "content": user_query})
+    tools = [get_tool_schema()]
+    final_answer = None
+    total_tokens = 0
+
+    for iteration in range(10):
+        yield {"event": "iteration_start", "data": {"iteration": iteration + 1}}
+
+        # Manage context (note: manage_context expects sync client, but we'll handle it)
+        # For now, skip context management in streaming or make it work with async
+        # messages = manage_context(messages, total_tokens, client, config)
+
+        try:
+            # Always use stream=True
+            stream = await client.chat.completions.create(
+                model=os.getenv("OPENAI_MODEL", "gpt-4.5"),
+                messages=messages,
+                tools=tools,
+                tool_choice="auto",
+                temperature=0.7,
+                max_tokens=2000,
+                stream=True
+            )
+
+            # Accumulate response
+            accumulated = {
+                "content": "",
+                "tool_calls": [],
+                "role": "assistant"
+            }
+
+            # Stream tokens
+            async for chunk in stream:
+                delta = chunk.choices[0].delta
+
+                # Stream content tokens
+                if delta.content:
+                    accumulated["content"] += delta.content
+                    yield {
+                        "event": "token",
+                        "data": {
+                            "content": delta.content,
+                            "iteration": iteration + 1
+                        }
+                    }
+
+                # Accumulate tool calls (incremental deltas)
+                if delta.tool_calls:
+                    _merge_tool_call_delta(accumulated["tool_calls"], delta.tool_calls)
+
+            # Track reasoning
+            if accumulated["content"]:
+                tracker.add_reasoning(accumulated["content"])
+
+            # Add assistant message to conversation
+            messages.append({
+                "role": "assistant",
+                "content": accumulated["content"],
+                "tool_calls": accumulated["tool_calls"] if accumulated["tool_calls"] else None
+            })
+
+            # Execute tool calls
+            if accumulated["tool_calls"]:
+                for tool_call in accumulated["tool_calls"]:
+                    tool_name = tool_call["function"]["name"]
+                    tool_args = json.loads(tool_call["function"]["arguments"])
+
+                    yield {
+                        "event": "tool_call_start",
+                        "data": {
+                            "tool_name": tool_name,
+                            "arguments": tool_args,
+                            "iteration": iteration + 1
+                        }
+                    }
+
+                    # Execute tool
+                    result = execute_tool(tool_name, tool_args)
+                    tracker.add_tool_call(tool_name, tool_args, result)
+
+                    # Track sources
+                    for article in result:
+                        tracker.add_source({
+                            "title": article.get("title", ""),
+                            "date": article.get("published_at", ""),
+                            "source": article.get("source", ""),
+                            "url": article.get("url", ""),
+                            "summary": article.get("description", ""),
+                            "api_source": article.get("api_source", "unknown")
+                        })
+
+                    yield {
+                        "event": "tool_call_complete",
+                        "data": {
+                            "tool_name": tool_name,
+                            "result_summary": f"Retrieved {len(result)} articles",
+                            "article_count": len(result),
+                            "iteration": iteration + 1
+                        }
+                    }
+
+                    # Compress and add to messages
+                    aggressive = total_tokens > config["warning_threshold"]
+                    compressed_articles = compress_tool_result(result, aggressive=aggressive)
+                    messages.append({
+                        "role": "tool",
+                        "tool_call_id": tool_call["id"],
+                        "content": json.dumps({"articles": compressed_articles}, ensure_ascii=False)
+                    })
+            else:
+                # No tool calls = final answer
+                final_answer = accumulated["content"] or "No answer generated."
+                break
+
+        except Exception as e:
+            logger.error(f"Error in agent loop: {e}")
+            yield {
+                "event": "error",
+                "data": {
+                    "message": str(e),
+                    "iteration": iteration + 1
+                }
+            }
+            final_answer = f"Error occurred: {str(e)}"
+            break
+
+    # If no answer after max iterations
+    if final_answer is None:
+        final_answer = "Agent reached maximum iterations without completing the analysis."
+
+    # Rewrite query for evaluation (using sync client for now)
+    sync_client = OpenAI(
+        api_key=os.getenv("OPENAI_API_KEY"),
+        base_url=os.getenv("OPENAI_BASE_URL")
+    )
+    rewritten_query = rewrite_query_with_context(user_query, messages, sync_client)
+
+    # Self-evaluate
+    evaluation = evaluate_response(final_answer, tracker, user_query=rewritten_query)
+    yield {"event": "evaluation", "data": evaluation}
+
+    # Build final result
+    result = {
+        "answer": final_answer,
+        "sources": tracker.sources,
+        "tool_calls": tracker.tool_calls,
+        "reasoning_steps": tracker.reasoning_steps,
+        "evaluation": evaluation,
+        "trace": tracker.get_trace()
+    }
+
+    # Final event with complete result
+    yield {
+        "event": "done",
+        "data": {
+            "result": result,
+            "messages": messages
+        }
+    }
+
+
+async def run_agent_with_retry_stream(
+    user_query: str,
+    messages: list
+) -> AsyncGenerator[dict, None]:
+    """Streaming version with retry support."""
+    config = RetryConfig()
+    attempt = 0
+    retry_history = []
+
+    while attempt < config.max_attempts:
+        attempt += 1
+
+        # Run agent and collect result
+        result = None
+        updated_messages = None
+
+        async for event in run_agent_stream(user_query, messages):
+            # Capture final result
+            if event["event"] == "done":
+                result = event["data"]["result"]
+                updated_messages = event["data"]["messages"]
+
+            # Forward all events
+            yield event
+
+        # Check if retry needed
+        evaluation = result["evaluation"]
+        should_retry = (
+            evaluation["overall"] < config.threshold_overall or
+            evaluation["accuracy"] < config.threshold_accuracy
+        )
+
+        if not should_retry or attempt >= config.max_attempts:
+            # Add retry history to final result if any retries occurred
+            if retry_history:
+                result["retry_history"] = retry_history
+                # Re-emit done event with retry history
+                yield {
+                    "event": "done",
+                    "data": {
+                        "result": result,
+                        "messages": updated_messages
+                    }
+                }
+            return
+
+        # Determine retry strategy
+        strategy = decide_retry_strategy(evaluation, result)
+        retry_info = {
+            "attempt": attempt,
+            "previous_score": evaluation["overall"],
+            "strategy": strategy,
+            "reason": f"Quality below threshold (overall: {evaluation['overall']:.1f})"
+        }
+        retry_history.append(retry_info)
+
+        # Emit retry event
+        yield {
+            "event": "retry",
+            "data": retry_info
+        }
+
+        # Prepare for retry
+        if strategy == "redo":
+            messages = create_conversation()  # Reset
+            messages.append({"role": "user", "content": user_query})
+        # else: continue with existing messages (fix strategy)

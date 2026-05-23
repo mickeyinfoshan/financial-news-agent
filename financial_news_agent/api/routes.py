@@ -1,8 +1,10 @@
 """API route handlers."""
 
 import asyncio
+import json
 import logging
 from fastapi import APIRouter, HTTPException, Query
+from fastapi.responses import StreamingResponse
 from typing import Union
 
 from .models import (
@@ -18,7 +20,7 @@ from .models import (
     HealthResponse,
 )
 from .session_manager import session_manager
-from ..agent import run_agent_with_retry, create_conversation
+from ..agent import run_agent_with_retry, run_agent_with_retry_stream, create_conversation
 
 logger = logging.getLogger(__name__)
 
@@ -95,6 +97,68 @@ async def query_session(session_id: str, request: QueryRequest):
     except Exception as e:
         logger.error(f"Error querying session {session_id}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to process query: {str(e)}")
+
+
+@router.post("/session/{session_id}/query/stream")
+async def query_session_stream(session_id: str, request: QueryRequest):
+    """
+    Stream agent response in real-time using Server-Sent Events.
+
+    Returns events as they occur: tool calls, reasoning, tokens, evaluation.
+    """
+    try:
+        # Get session
+        session = session_manager.get_session(session_id)
+        if not session:
+            raise HTTPException(status_code=404, detail=f"Session {session_id} not found")
+
+        async def event_generator():
+            """Generate SSE events."""
+            try:
+                result = None
+                updated_messages = None
+
+                # Stream events from agent
+                async for event in run_agent_with_retry_stream(
+                    request.query,
+                    session["messages"]
+                ):
+                    # Format as SSE
+                    event_data = json.dumps(event, ensure_ascii=False)
+                    yield f"data: {event_data}\n\n"
+
+                    # Capture final result
+                    if event["event"] == "done":
+                        result = event["data"]["result"]
+                        updated_messages = event["data"]["messages"]
+
+                # Update session
+                if result and updated_messages:
+                    session_manager.update_session(session_id, updated_messages, result)
+
+            except Exception as e:
+                logger.error(f"Error in stream: {e}", exc_info=True)
+                error_event = {
+                    "event": "error",
+                    "data": {"message": str(e)}
+                }
+                yield f"data: {json.dumps(error_event)}\n\n"
+
+        return StreamingResponse(
+            event_generator(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "X-Accel-Buffering": "no"  # Disable nginx buffering
+            }
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error setting up stream: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/session/list", response_model=SessionListResponse)

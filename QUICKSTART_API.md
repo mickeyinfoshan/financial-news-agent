@@ -37,28 +37,51 @@ curl -X POST http://localhost:8000/api/v1/session/{SESSION_ID}/query \
   -d '{"query": "What about their competitors?"}'
 ```
 
-### 4. List All Sessions
+### 4. Streaming Query (Real-time Response)
+```bash
+curl -N -X POST http://localhost:8000/api/v1/session/{SESSION_ID}/query/stream \
+  -H "Content-Type: application/json" \
+  -d '{"query": "What is the outlook for EV stocks?"}'
+```
+
+The `-N` flag disables buffering so you see events in real-time.
+
+### 5. List All Sessions
 ```bash
 curl http://localhost:8000/api/v1/session/list
 ```
 
-### 5. Get Session Details
+### 6. Get Session Details
 ```bash
 curl http://localhost:8000/api/v1/session/{SESSION_ID}
 ```
 
-### 6. Get Conversation History
+### 7. Get Conversation History
 ```bash
 curl http://localhost:8000/api/v1/session/{SESSION_ID}/messages
 ```
 
-### 7. Delete Session
+### 8. Delete Session
 ```bash
 curl -X DELETE http://localhost:8000/api/v1/session/{SESSION_ID}
 ```
 
+## Streaming vs Non-Streaming
+
+**Non-streaming** (`/query`): Returns complete response after agent finishes
+- Use when you want the full result at once
+- Simpler to handle
+- Example: batch processing, background jobs
+
+**Streaming** (`/query/stream`): Returns events in real-time as agent works
+- Use when you want to show progress to users
+- See tool calls, reasoning, and answer as they happen
+- Better UX for long-running queries (30+ seconds)
+- Uses Server-Sent Events (SSE) format
+
 ## Python Client Example
 
+### Non-Streaming
 ```python
 import requests
 
@@ -85,6 +108,115 @@ response = requests.post(
 result = response.json()
 print(f"\nFollow-up Answer: {result['answer']}")
 ```
+
+### Streaming
+```python
+import requests
+import json
+
+BASE_URL = "http://localhost:8000/api/v1"
+
+# Create session
+response = requests.post(f"{BASE_URL}/session/create", json={})
+session_id = response.json()["session_id"]
+
+# Stream query
+response = requests.post(
+    f"{BASE_URL}/session/{session_id}/query/stream",
+    json={"query": "What's happening with Tesla?"},
+    stream=True
+)
+
+print("Streaming response:")
+for line in response.iter_lines():
+    if line and line.startswith(b'data: '):
+        event = json.loads(line[6:])
+        
+        if event['event'] == 'token':
+            # Print answer tokens as they arrive
+            print(event['data']['content'], end='', flush=True)
+        
+        elif event['event'] == 'tool_call_start':
+            print(f"\n[Searching {event['data']['tool_name']}...]")
+        
+        elif event['event'] == 'evaluation':
+            print(f"\n\nScore: {event['data']['overall']}/10")
+        
+        elif event['event'] == 'done':
+            print("\n\nComplete!")
+            break
+```
+
+## JavaScript Client Example
+
+### Streaming with Fetch API
+```javascript
+const response = await fetch(
+  'http://localhost:8000/api/v1/session/SESSION_ID/query/stream',
+  {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query: "What's happening with Apple?" })
+  }
+);
+
+const reader = response.body.getReader();
+const decoder = new TextDecoder();
+
+while (true) {
+  const { done, value } = await reader.read();
+  if (done) break;
+  
+  const text = decoder.decode(value);
+  const lines = text.split('\n');
+  
+  for (const line of lines) {
+    if (line.startsWith('data: ')) {
+      const event = JSON.parse(line.slice(6));
+      
+      switch (event.event) {
+        case 'token':
+          // Append token to UI
+          document.getElementById('answer').textContent += event.data.content;
+          break;
+        
+        case 'tool_call_start':
+          document.getElementById('status').textContent = 
+            `Searching ${event.data.tool_name}...`;
+          break;
+        
+        case 'tool_call_complete':
+          document.getElementById('status').textContent = 
+            `Found ${event.data.article_count} articles`;
+          break;
+        
+        case 'evaluation':
+          document.getElementById('score').textContent = 
+            `Score: ${event.data.overall}/10`;
+          break;
+        
+        case 'done':
+          console.log('Complete:', event.data.result);
+          break;
+      }
+    }
+  }
+}
+```
+
+## Streaming Event Types
+
+| Event | Description | Data Fields |
+|-------|-------------|-------------|
+| `agent_start` | Agent begins processing | `query` |
+| `iteration_start` | New agent loop iteration | `iteration` (1-10) |
+| `token` | Token from LLM response | `content`, `iteration` |
+| `tool_call_start` | Tool execution begins | `tool_name`, `arguments`, `iteration` |
+| `tool_call_complete` | Tool execution finished | `tool_name`, `result_summary`, `article_count`, `iteration` |
+| `evaluation` | Self-evaluation results | `overall`, `accuracy`, `relevance`, `coherence`, `reasonableness` |
+| `retry` | Retry triggered (low quality) | `attempt`, `reason`, `strategy` |
+| `done` | Processing complete | `result` (full result dict), `messages` |
+| `error` | Error occurred | `message` |
 
 ## Configuration
 
@@ -118,14 +250,17 @@ Run automated tests:
 uv run pytest tests/test_api.py -v
 ```
 
-Run manual test script (requires server running):
+Run manual test scripts (requires server running):
 
 ```bash
 # Terminal 1: Start server
 uv run python -m financial_news_agent.api_server
 
-# Terminal 2: Run test
+# Terminal 2: Test non-streaming
 uv run python .dev_process/test_api_manual.py
+
+# Terminal 3: Test streaming
+uv run python .dev_process/test_api_streaming.py
 ```
 
 ## Troubleshooting
@@ -146,6 +281,11 @@ API_CORS_ORIGINS=http://localhost:3000,http://localhost:8080
 - Make sure the server is running
 - Check firewall settings
 - Verify the correct host/port
+
+**Streaming not working:**
+- Make sure you're using `-N` flag with curl (disables buffering)
+- In Python, use `stream=True` with requests
+- In JavaScript, use ReadableStream API
 
 ## CLI Still Works
 
