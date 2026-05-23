@@ -5,10 +5,13 @@ import re
 import time
 import logging
 from datetime import datetime, timedelta
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, TYPE_CHECKING
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from functools import lru_cache
 import requests
+
+if TYPE_CHECKING:
+    from .traceability import TraceabilityTracker
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -315,7 +318,36 @@ def _search_finnhub_news(query: str, days_back: int = 7, company_name: str = Non
         return []
 
 
-def search_financial_news(query: str, days_back: int = 7, company_name: str = None) -> List[Dict[str, str]]:
+def _search_newsapi_timed(query: str, days_back: int, tracker: Optional['TraceabilityTracker']) -> List[Dict[str, str]]:
+    """NewsAPI search with timing."""
+    if tracker:
+        with tracker.time_operation("NewsAPI Request", "api_call", {"query": query, "days_back": days_back}):
+            return _search_newsapi(query, days_back)
+    else:
+        return _search_newsapi(query, days_back)
+
+
+def _search_finnhub_news_timed(
+    query: str,
+    days_back: int,
+    company_name: Optional[str],
+    tracker: Optional['TraceabilityTracker']
+) -> List[Dict[str, str]]:
+    """Finnhub search with timing."""
+    if tracker:
+        metadata = {"query": query, "days_back": days_back, "company_name": company_name}
+        with tracker.time_operation("Finnhub Request", "api_call", metadata):
+            return _search_finnhub_news(query, days_back, company_name)
+    else:
+        return _search_finnhub_news(query, days_back, company_name)
+
+
+def search_financial_news(
+    query: str,
+    days_back: int = 7,
+    company_name: str = None,
+    tracker: Optional['TraceabilityTracker'] = None
+) -> List[Dict[str, str]]:
     """
     Search for financial news using both NewsAPI and Finnhub.
 
@@ -326,6 +358,7 @@ def search_financial_news(query: str, days_back: int = 7, company_name: str = No
         query: Search query (company, ticker, or industry)
         days_back: Number of days to search back
         company_name: Optional company name for Finnhub ticker lookup
+        tracker: Optional traceability tracker for timing instrumentation
 
     Returns:
         List of news articles with metadata from both sources.
@@ -334,11 +367,11 @@ def search_financial_news(query: str, days_back: int = 7, company_name: str = No
     """
     all_articles = []
 
-    # Query both APIs in parallel
+    # Query both APIs in parallel with timing
     with ThreadPoolExecutor(max_workers=2) as executor:
         futures = {
-            executor.submit(_search_newsapi, query, days_back): "newsapi",
-            executor.submit(_search_finnhub_news, query, days_back, company_name): "finnhub"
+            executor.submit(_search_newsapi_timed, query, days_back, tracker): "newsapi",
+            executor.submit(_search_finnhub_news_timed, query, days_back, company_name, tracker): "finnhub"
         }
 
         for future in as_completed(futures):
@@ -379,13 +412,14 @@ def search_financial_news(query: str, days_back: int = 7, company_name: str = No
     return unique_articles[:20]
 
 
-def execute_tool(tool_name: str, arguments: dict) -> List[Dict[str, str]]:
+def execute_tool(tool_name: str, arguments: dict, tracker: Optional['TraceabilityTracker'] = None) -> List[Dict[str, str]]:
     """
     Execute the news search tool.
 
     Args:
         tool_name: Name of the tool to execute
         arguments: Tool arguments dictionary
+        tracker: Optional traceability tracker for timing instrumentation
 
     Returns:
         List of news articles
@@ -397,6 +431,6 @@ def execute_tool(tool_name: str, arguments: dict) -> List[Dict[str, str]]:
         query = arguments.get("query", "")
         days_back = arguments.get("days_back", 7)
         company_name = arguments.get("company_name")
-        return search_financial_news(query, days_back, company_name)
+        return search_financial_news(query, days_back, company_name, tracker)
     else:
         raise ValueError(f"Unknown tool: {tool_name}")

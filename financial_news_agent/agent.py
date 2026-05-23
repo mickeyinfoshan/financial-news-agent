@@ -183,95 +183,118 @@ def run_agent(user_query: str, messages: list) -> tuple[dict, list]:
     for iteration in range(10):
         logger.debug(f"[Iteration {iteration + 1}]")
 
-        # Manage context window before LLM call
-        messages = manage_context(messages, total_tokens, client, config)
+        with tracker.time_operation(f"Iteration {iteration + 1}", "iteration", {"iteration": iteration + 1}):
+            # Manage context window before LLM call
+            with tracker.time_operation("Context Management", "context_mgmt"):
+                messages = manage_context(messages, total_tokens, client, config, tracker)
 
-        try:
-            response = client.chat.completions.create(
-                model=os.getenv("OPENAI_MODEL", "gpt-4.5"),
-                messages=messages,
-                tools=tools,
-                tool_choice="auto",
-                temperature=0.7,
-                max_tokens=2000
-            )
+            try:
+                llm_metadata = {
+                    "model": os.getenv("OPENAI_MODEL", "gpt-4.5"),
+                    "iteration": iteration + 1,
+                    "has_tools": True
+                }
 
-            # Track token usage from API response
-            if hasattr(response, 'usage') and response.usage:
-                total_tokens = response.usage.total_tokens
-                logger.debug(f"Token usage: {total_tokens}")
+                with tracker.time_operation("LLM Reasoning Call", "llm_call", llm_metadata) as timing_node:
+                    response = client.chat.completions.create(
+                        model=os.getenv("OPENAI_MODEL", "gpt-4.5"),
+                        messages=messages,
+                        tools=tools,
+                        tool_choice="auto",
+                        temperature=0.7,
+                        max_tokens=2000
+                    )
 
-            assistant_message = response.choices[0].message
-            finish_reason = response.choices[0].finish_reason
+                    # Track token usage from API response
+                    if hasattr(response, 'usage') and response.usage:
+                        total_tokens = response.usage.total_tokens
+                        timing_node.metadata["tokens"] = {
+                            "prompt": response.usage.prompt_tokens,
+                            "completion": response.usage.completion_tokens,
+                            "total": total_tokens
+                        }
+                        logger.debug(f"Token usage: {total_tokens}")
 
-            logger.debug(f"Finish reason: {finish_reason}")
-            logger.debug(f"Has tool calls: {bool(assistant_message.tool_calls)}")
-            logger.debug(f"Content: {assistant_message.content[:100] if assistant_message.content else 'None'}...")
+                assistant_message = response.choices[0].message
+                finish_reason = response.choices[0].finish_reason
 
-            # Add assistant message to conversation
-            messages.append({
-                "role": "assistant",
-                "content": assistant_message.content,
-                "tool_calls": assistant_message.tool_calls
-            })
+                logger.debug(f"Finish reason: {finish_reason}")
+                logger.debug(f"Has tool calls: {bool(assistant_message.tool_calls)}")
+                logger.debug(f"Content: {assistant_message.content[:100] if assistant_message.content else 'None'}...")
 
-            # Track reasoning if there's text content
-            if assistant_message.content:
-                tracker.add_reasoning(assistant_message.content)
+                # Add assistant message to conversation
+                messages.append({
+                    "role": "assistant",
+                    "content": assistant_message.content,
+                    "tool_calls": assistant_message.tool_calls
+                })
 
-            # Check if we have tool calls to execute
-            if assistant_message.tool_calls:
-                # Execute tool calls
-                for tool_call in assistant_message.tool_calls:
-                    tool_name = tool_call.function.name
-                    tool_args = json.loads(tool_call.function.arguments)
+                # Track reasoning if there's text content
+                if assistant_message.content:
+                    tracker.add_reasoning(assistant_message.content)
 
-                    # Execute the tool
-                    result = execute_tool(tool_name, tool_args)
+                # Check if we have tool calls to execute
+                if assistant_message.tool_calls:
+                    # Execute tool calls
+                    for tool_call in assistant_message.tool_calls:
+                        tool_name = tool_call.function.name
+                        tool_args = json.loads(tool_call.function.arguments)
 
-                    # Track the tool call
-                    tracker.add_tool_call(tool_name, tool_args, result)
+                        tool_metadata = {
+                            "tool": tool_name,
+                            "args": tool_args,
+                            "iteration": iteration + 1
+                        }
 
-                    # Add sources (use full result for traceability)
-                    for article in result:
-                        tracker.add_source({
-                            "title": article.get("title", ""),
-                            "date": article.get("published_at", ""),
-                            "source": article.get("source", ""),
-                            "url": article.get("url", ""),
-                            "summary": article.get("description", ""),
-                            "api_source": article.get("api_source", "unknown")
+                        with tracker.time_operation(f"Tool: {tool_name}", "tool_call", tool_metadata):
+                            # Execute the tool
+                            result = execute_tool(tool_name, tool_args, tracker)
+
+                        # Track the tool call
+                        tracker.add_tool_call(tool_name, tool_args, result)
+
+                        # Add sources (use full result for traceability)
+                        for article in result:
+                            tracker.add_source({
+                                "title": article.get("title", ""),
+                                "date": article.get("published_at", ""),
+                                "source": article.get("source", ""),
+                                "url": article.get("url", ""),
+                                "summary": article.get("description", ""),
+                                "api_source": article.get("api_source", "unknown")
+                            })
+
+                        # Compress result for LLM context
+                        aggressive = total_tokens > config["warning_threshold"]
+                        compressed_articles = compress_tool_result(result, aggressive=aggressive)
+
+                        # Add compressed tool result to conversation
+                        messages.append({
+                            "role": "tool",
+                            "tool_call_id": tool_call.id,
+                            "content": json.dumps({"articles": compressed_articles}, ensure_ascii=False)
                         })
+                else:
+                    # No tool calls, this is the final answer
+                    final_answer = assistant_message.content or "No answer generated."
+                    break
 
-                    # Compress result for LLM context
-                    aggressive = total_tokens > config["warning_threshold"]
-                    compressed_articles = compress_tool_result(result, aggressive=aggressive)
-
-                    # Add compressed tool result to conversation
-                    messages.append({
-                        "role": "tool",
-                        "tool_call_id": tool_call.id,
-                        "content": json.dumps({"articles": compressed_articles}, ensure_ascii=False)
-                    })
-            else:
-                # No tool calls, this is the final answer
-                final_answer = assistant_message.content or "No answer generated."
+            except Exception as e:
+                logger.error(f"Error in agent loop: {e}")
+                final_answer = f"Error occurred: {str(e)}"
                 break
-
-        except Exception as e:
-            logger.error(f"Error in agent loop: {e}")
-            final_answer = f"Error occurred: {str(e)}"
-            break
 
     # If no answer after max iterations
     if final_answer is None:
         final_answer = "Agent reached maximum iterations without completing the analysis."
 
     # Rewrite query for evaluation (handles multi-turn context)
-    rewritten_query = rewrite_query_with_context(user_query, messages, client)
+    with tracker.time_operation("Query Rewriting", "llm_call", {"purpose": "context_resolution"}):
+        rewritten_query = rewrite_query_with_context(user_query, messages, client)
 
     # Self-evaluate the response with rewritten query
-    evaluation = evaluate_response(final_answer, tracker, user_query=rewritten_query)
+    with tracker.time_operation("Response Evaluation", "llm_call", {"purpose": "quality_assessment"}):
+        evaluation = evaluate_response(final_answer, tracker, user_query=rewritten_query)
 
     # Return structured result and updated messages
     return {
@@ -297,6 +320,8 @@ def run_agent_with_retry(user_query: str, messages: list) -> tuple[dict, list]:
     Returns:
         Tuple of (result dict, updated messages list)
     """
+    # Create tracker at the top level to capture all timing
+    tracker = TraceabilityTracker()
     config = RetryConfig()
 
     # Track retry attempts
@@ -305,73 +330,97 @@ def run_agent_with_retry(user_query: str, messages: list) -> tuple[dict, list]:
     previous_result = None
     previous_messages = None
 
-    while attempt <= config.max_attempts:
-        try:
-            # Run the agent
-            result, messages = run_agent(user_query, messages)
+    with tracker.time_operation("Agent Request", "request", {"query": user_query}):
+        while attempt <= config.max_attempts:
+            attempt_metadata = {"attempt": attempt + 1, "max_attempts": config.max_attempts + 1}
 
-            evaluation = result["evaluation"]
+            with tracker.time_operation(f"Attempt {attempt + 1}", "attempt", attempt_metadata):
+                try:
+                    # Run the agent
+                    result, messages = run_agent(user_query, messages)
 
-            # Store attempt if configured
-            if config.show_attempts and attempt > 0:
-                retry_history.append({
-                    "attempt": attempt,
-                    "evaluation": evaluation,
-                    "answer": result["answer"]
-                })
+                    evaluation = result["evaluation"]
 
-            # Check if retry needed
-            if not config.should_retry(evaluation, attempt):
-                # Success or max attempts reached
-                if config.show_attempts and retry_history:
-                    result["retry_history"] = retry_history
-                return result, messages
+                    # Store attempt if configured
+                    if config.show_attempts and attempt > 0:
+                        retry_history.append({
+                            "attempt": attempt,
+                            "evaluation": evaluation,
+                            "answer": result["answer"]
+                        })
 
-            # Save current result in case retry fails
-            previous_result = result
-            previous_messages = messages.copy()
+                    # Check if retry needed
+                    if not config.should_retry(evaluation, attempt):
+                        # Success or max attempts reached
+                        if config.show_attempts and retry_history:
+                            result["retry_history"] = retry_history
 
-            # Decide strategy
-            strategy = decide_retry_strategy(evaluation, result["sources"], config)
+                        # Merge timing from top-level tracker
+                        if "trace" in result and "timing" not in result["trace"]:
+                            result["trace"]["timing"] = tracker.get_timing_summary()
 
-            if strategy == "none":
-                if config.show_attempts and retry_history:
-                    result["retry_history"] = retry_history
-                return result, messages
+                        return result, messages
 
-            logger.info(f"[Retry {attempt + 1}/{config.max_attempts}] Strategy: {strategy.upper()}")
-            logger.info(f"Reason: Overall={evaluation['overall']:.1f}, Accuracy={evaluation.get('accuracy', 0)}/10")
+                    # Save current result in case retry fails
+                    previous_result = result
+                    previous_messages = messages.copy()
 
-            # Execute retry strategy
-            if strategy == "fix":
-                # FIX: Continue conversation with improvement prompt
-                fix_prompt = build_fix_prompt(evaluation, user_query)
-                messages.append({"role": "user", "content": fix_prompt})
+                    # Decide strategy
+                    strategy = decide_retry_strategy(evaluation, result["sources"], config)
 
-            elif strategy == "redo":
-                # REDO: Reset to system message + new query
-                system_msg = messages[0]
-                redo_prompt = build_redo_prompt(evaluation, user_query)
-                messages = [system_msg, {"role": "user", "content": redo_prompt}]
+                    if strategy == "none":
+                        if config.show_attempts and retry_history:
+                            result["retry_history"] = retry_history
 
-            attempt += 1
+                        # Merge timing from top-level tracker
+                        if "trace" in result and "timing" not in result["trace"]:
+                            result["trace"]["timing"] = tracker.get_timing_summary()
 
-        except Exception as e:
-            logger.error(f"Error during retry (attempt {attempt}): {e}")
-            if attempt == 0:
-                # First attempt failed, re-raise
-                raise
-            else:
-                # Retry failed, return previous result
-                if config.show_attempts and retry_history:
-                    previous_result["retry_history"] = retry_history
-                return previous_result, previous_messages
+                        return result, messages
 
-    # Max attempts exhausted
-    logger.warning(f"Maximum retry attempts reached ({config.max_attempts})")
-    if config.show_attempts and retry_history:
-        result["retry_history"] = retry_history
-    return result, messages
+                    logger.info(f"[Retry {attempt + 1}/{config.max_attempts}] Strategy: {strategy.upper()}")
+                    logger.info(f"Reason: Overall={evaluation['overall']:.1f}, Accuracy={evaluation.get('accuracy', 0)}/10")
+
+                    # Execute retry strategy
+                    if strategy == "fix":
+                        # FIX: Continue conversation with improvement prompt
+                        fix_prompt = build_fix_prompt(evaluation, user_query)
+                        messages.append({"role": "user", "content": fix_prompt})
+
+                    elif strategy == "redo":
+                        # REDO: Reset to system message + new query
+                        system_msg = messages[0]
+                        redo_prompt = build_redo_prompt(evaluation, user_query)
+                        messages = [system_msg, {"role": "user", "content": redo_prompt}]
+
+                    attempt += 1
+
+                except Exception as e:
+                    logger.error(f"Error during retry (attempt {attempt}): {e}")
+                    if attempt == 0:
+                        # First attempt failed, re-raise
+                        raise
+                    else:
+                        # Retry failed, return previous result
+                        if config.show_attempts and retry_history:
+                            previous_result["retry_history"] = retry_history
+
+                        # Merge timing from top-level tracker
+                        if "trace" in previous_result and "timing" not in previous_result["trace"]:
+                            previous_result["trace"]["timing"] = tracker.get_timing_summary()
+
+                        return previous_result, previous_messages
+
+        # Max attempts exhausted
+        logger.warning(f"Maximum retry attempts reached ({config.max_attempts})")
+        if config.show_attempts and retry_history:
+            result["retry_history"] = retry_history
+
+        # Merge timing from top-level tracker
+        if "trace" in result and "timing" not in result["trace"]:
+            result["trace"]["timing"] = tracker.get_timing_summary()
+
+        return result, messages
 
 
 def _merge_tool_call_delta(accumulated: list, deltas: list):
@@ -495,7 +544,7 @@ async def run_agent_stream(
                     }
 
                     # Execute tool
-                    result = execute_tool(tool_name, tool_args)
+                    result = execute_tool(tool_name, tool_args, tracker)
                     tracker.add_tool_call(tool_name, tool_args, result)
 
                     # Track sources
@@ -558,6 +607,11 @@ async def run_agent_stream(
     # Self-evaluate
     evaluation = evaluate_response(final_answer, tracker, user_query=rewritten_query)
     yield {"event": "evaluation", "data": evaluation}
+
+    # Emit timing summary
+    timing_summary = tracker.get_timing_summary()
+    if timing_summary["total_duration_ms"] > 0:
+        yield {"event": "timing", "data": timing_summary}
 
     # Build final result
     result = {
