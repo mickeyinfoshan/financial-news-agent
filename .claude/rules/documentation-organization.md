@@ -16,6 +16,9 @@
 - ✅ Summaries → `.dev_docs/summary/`
 - ❌ Do NOT create `*_PLAN.md`, `*_SUMMARY.md` in project root
 - ✅ Use descriptive filenames with dates when relevant
+- ✅ Every directory MUST have a `README.md` explaining its purpose and ownership boundary
+- ✅ Parent directory READMEs should link to child directory READMEs
+- ✅ Keep parent READMEs concise and avoid duplicating child-level details
 
 ## Examples
 
