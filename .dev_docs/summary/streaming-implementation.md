@@ -69,9 +69,30 @@ All events follow this structure:
 - ✅ All event types emit properly
 - ✅ Session updates after streaming
 - ✅ Non-streaming endpoints still work
-- ✅ All 13 existing API tests pass
+- ✅ All 17 API tests pass (13 original + 4 new streaming tests)
+- ✅ Full unit test coverage for streaming functionality
 
-### 5. Documentation
+### 5. Unit Tests
+
+**New Tests in `tests/test_api.py`:**
+- `test_query_session_stream` - Basic streaming functionality, event sequence validation
+- `test_query_session_stream_nonexistent` - 404 error handling
+- `test_query_session_stream_with_retry` - Retry event streaming
+- `test_query_session_stream_error_handling` - Error event handling
+
+**Test Coverage:**
+- ✅ All event types (agent_start, iteration_start, token, tool_call_start/complete, evaluation, retry, done, error)
+- ✅ SSE format validation
+- ✅ Token streaming and accumulation
+- ✅ Session updates after streaming
+- ✅ Error scenarios (404, runtime errors)
+- ✅ Retry mechanism transparency
+
+**Test Results:**
+- 17 tests total (13 original + 4 new streaming tests)
+- All tests pass: `17 passed, 4 warnings in 0.42s`
+
+### 6. Documentation
 
 **Updated Files:**
 - `README.md` - Added streaming endpoint to API table
@@ -313,8 +334,14 @@ uv run python .dev_process/test_api_streaming.py
 **Automated Testing:**
 ```bash
 uv run pytest tests/test_api.py -v
-# Result: 13 passed, 4 warnings in 0.50s
+# Result: 17 passed, 4 warnings in 0.42s
 ```
+
+**Test Coverage:**
+- Basic streaming: event sequence, SSE format, token accumulation
+- Error handling: 404 errors, runtime errors
+- Retry mechanism: low-quality detection, retry events, improvement
+- Session management: updates after streaming completes
 
 **Real Query Test:**
 - Query: "What's happening with Tesla stock?"
