@@ -4,13 +4,15 @@ AI agent that searches recent financial news and provides analysis with storylin
 
 ## Features
 
-- 🔍 Real-time financial news search via NewsAPI and Finnhub
+- 🔍 Multi-source financial news search (NewsAPI, Finnhub, Marketaux)
 - 🤖 LLM-powered analysis with OpenAI GPT-4
 - 📊 Storyline generation and future impact analysis
 - ✅ Self-evaluation of response quality
 - 🔗 Full traceability of sources and reasoning
 - 🔄 Automatic retry/fix mechanism for low-quality responses
 - 📈 Smart strategy selection (FIX vs REDO) based on evaluation scores
+- 🌐 FastAPI web service with streaming support (Server-Sent Events)
+- 🔌 Extensible provider system for adding new news sources
 
 ## Setup
 
@@ -35,6 +37,7 @@ OPENAI_BASE_URL=https://www.right.codes/codex/v1
 OPENAI_MODEL=gpt-5.5
 NEWS_API_KEY=your-newsapi-key-here
 FINNHUB_API_KEY=your-finnhub-api-key-here
+MARKETAUX_API_KEY=your-marketaux-api-key-here  # Optional
 
 # Optional: Retry/Fix Mechanism
 RETRY_ENABLE=true                    # Enable automatic quality improvement
@@ -48,6 +51,7 @@ RETRY_SHOW_ATTEMPTS=true             # Show retry history
 Get API keys:
 - NewsAPI: https://newsapi.org (100 requests/day free tier)
 - Finnhub: https://finnhub.io (60 requests/minute free tier)
+- Marketaux: https://www.marketaux.com (optional, additional news source)
 
 ### 3. Run the Agent
 
@@ -220,7 +224,7 @@ Attempt 1:
 ```
 User Query → Agent Loop (LLM + Tools) → Answer → Self-Evaluation
                   ↓                                      ↓
-         [NewsAPI + Finnhub]                    Score < Threshold?
+         [NewsAPI + Finnhub + Marketaux]         Score < Threshold?
          [Traceability Tracker]                         ↓
                                                    Retry/Fix
                                                    ↓        ↓
@@ -244,12 +248,19 @@ financial_news_agent/
 ├── __main__.py          # CLI entry point
 ├── api_server.py        # API server entry point
 ├── agent.py             # Main agent loop with retry wrapper
-├── news_tool.py         # NewsAPI + Finnhub integration
+├── news_tool.py         # Multi-source news orchestration
+├── news_sources/        # News provider implementations
+│   ├── __init__.py      # Exports all providers
+│   ├── base.py          # NewsSourceProvider Protocol
+│   ├── newsapi.py       # NewsAPIProvider implementation
+│   ├── finnhub.py       # FinnhubProvider implementation
+│   └── marketaux.py     # MarketauxProvider implementation
 ├── evaluator.py         # Self-evaluation
 ├── traceability.py      # Source tracking
 ├── retry_manager.py     # Retry/fix mechanism
 ├── context_manager.py   # Context window management
 ├── config.py            # Configuration management
+├── types.py             # Type definitions
 ├── utils.py             # Shared utilities (citation extraction)
 └── api/                 # FastAPI web service
     ├── __init__.py

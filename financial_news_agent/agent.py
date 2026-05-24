@@ -81,13 +81,12 @@ def rewrite_query_with_context(user_query: str, messages: list[MessageDict], cli
     Returns:
         str: Rewritten query that is self-contained and clear
     """
-    # Edge case 1: First turn (only system message exists)
-    # No context needed, return original query
+    # Skip rewriting on first turn - no prior context exists
     if len(messages) <= 1:
         return user_query
 
-    # Edge case 2: Query already seems self-contained
-    # Check for pronouns and implicit references
+    # Skip rewriting if query appears self-contained (no pronouns, sufficient length)
+    # Avoids unnecessary LLM call when query is already clear
     pronouns: list[str] = ['their', 'its', 'it', 'they', 'them', 'this', 'that', 'these', 'those']
     query_lower: str = user_query.lower()
     has_pronouns: bool = any(f' {pronoun} ' in f' {query_lower} ' or
@@ -95,25 +94,23 @@ def rewrite_query_with_context(user_query: str, messages: list[MessageDict], cli
                       query_lower.endswith(f' {pronoun}')
                       for pronoun in pronouns)
 
-    # If no pronouns and query is reasonably long, likely self-contained
     if not has_pronouns and len(user_query.split()) > 3:
         return user_query
 
     # Build context from recent conversation (last 3-5 exchanges)
-    # Exclude system message, focus on user-assistant exchanges
     context_messages: list[str] = []
-    for msg in messages[1:]:  # Skip system message
+    for msg in messages[1:]:  # Skip system message - it doesn't contain conversation history
         role: str = msg.get("role", "")
         content: str | None = msg.get("content", "")
 
         if role == "user" and content:
             context_messages.append(f"User: {content}")
         elif role == "assistant" and content:
-            # Truncate long assistant responses
+            # Truncate to 300 chars - full responses would overwhelm the rewriting prompt
             content_preview: str = content[:300] if len(content) > 300 else content
             context_messages.append(f"Assistant: {content_preview}")
 
-    # Limit to last 6 messages (3 exchanges) to avoid token bloat
+    # Limit to 6 messages (3 exchanges) - older context rarely helps pronoun resolution
     recent_context: list[str] = context_messages[-6:] if len(context_messages) > 6 else context_messages
     context_text: str = "\n".join(recent_context)
 
@@ -150,7 +147,7 @@ REWRITTEN QUERY:"""
 
         rewritten: str = response.choices[0].message.content.strip() if response.choices[0].message.content else user_query
 
-        # Remove quotes if LLM wrapped the response
+        # Strip quotes - LLMs sometimes wrap output in quotes despite instructions
         if rewritten.startswith('"') and rewritten.endswith('"'):
             rewritten = rewritten[1:-1]
         if rewritten.startswith("'") and rewritten.endswith("'"):
@@ -161,7 +158,7 @@ REWRITTEN QUERY:"""
 
     except Exception as e:
         logger.debug(f"Query rewriting failed: {e}, using original query")
-        # Fallback: return original query if rewriting fails
+        # Graceful degradation - better to evaluate with ambiguous query than fail
         return user_query
 
 
@@ -209,7 +206,7 @@ def run_agent(user_query: str, messages: list[MessageDict]) -> tuple[AgentResult
                     "has_tools": True
                 }
 
-                # On final iteration, force final answer (no tools)
+                # Force final answer on last iteration - prevents infinite tool calling loops
                 is_final_iteration = (iteration == MAX_ITERATIONS - 1)
                 tool_choice_param = "none" if is_final_iteration else "auto"
 
@@ -247,8 +244,8 @@ def run_agent(user_query: str, messages: list[MessageDict]) -> tuple[AgentResult
                     "tool_calls": assistant_message.tool_calls
                 })
 
-                # Track reasoning if there's text content AND tool calls
-                # (Don't add final answer to reasoning steps)
+                # Track reasoning only when LLM explains its tool usage
+                # Final answers (no tool_calls) are tracked separately in result["answer"]
                 if assistant_message.content and assistant_message.tool_calls:
                     tracker.add_reasoning(assistant_message.content)
 
@@ -272,10 +269,11 @@ def run_agent(user_query: str, messages: list[MessageDict]) -> tuple[AgentResult
                         # Track the tool call
                         tracker.add_tool_call(tool_name, tool_args, tool_result)
 
-                        # Calculate starting ID BEFORE adding sources (for continuous numbering)
+                        # Calculate start_id before adding sources - ensures continuous numbering across tool calls
+                        # Example: first call adds 10 sources (1-10), second call starts at 11
                         start_id: int = len(tracker.sources) + 1
 
-                        # Add sources (use full result for traceability)
+                        # Store full articles in tracker for final result
                         for article in tool_result:
                             tracker.add_source({
                                 "title": article.get("title", ""),
@@ -286,7 +284,7 @@ def run_agent(user_query: str, messages: list[MessageDict]) -> tuple[AgentResult
                                 "api_source": article.get("api_source", "unknown")
                             })
 
-                        # Compress result for LLM context with correct offset
+                        # Send compressed version to LLM to save tokens
                         aggressive: bool = total_tokens > config["warning_threshold"]
                         compressed_articles: list[dict[str, Any]] = compress_tool_result(tool_result, aggressive=aggressive, start_id=start_id)
 

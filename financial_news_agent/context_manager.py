@@ -36,8 +36,9 @@ def load_config() -> ContextConfig:
 def compress_tool_result(articles: list[ArticleData], aggressive: bool = False, start_id: int = 1) -> list[dict[str, Any]]:
     """Compress tool result articles to save tokens.
 
-    Tier 1 (always): Keep only essential fields (title, source, url, published_at)
-    Tier 2 (aggressive): Limit to first 10 articles
+    Two-tier compression strategy:
+    - Tier 1 (always): Remove description/content fields - LLM only needs metadata
+    - Tier 2 (aggressive): Limit to 10 articles when approaching token limits
 
     Args:
         articles: List of article dictionaries from news search
@@ -75,6 +76,8 @@ def summarize_history(messages: list[MessageDict], client: OpenAI, recent_count:
     """Summarize middle conversation history using LLM.
 
     Preserves system message and recent N messages, summarizes everything in between.
+    This prevents context window overflow in long conversations while maintaining
+    recent context for coherent multi-turn dialogue.
 
     Args:
         messages: Full messages list
@@ -96,14 +99,14 @@ def summarize_history(messages: list[MessageDict], client: OpenAI, recent_count:
         logger.info("No middle messages to summarize")
         return ""
 
-    # Format messages for summarization (truncate long content)
+    # Format messages for summarization
     formatted: list[str] = []
     for msg in middle_messages:
         role: str = msg.get("role", "")
         content: str | None = msg.get("content", "")
 
         if content:
-            # Truncate long content to avoid overwhelming the summarization prompt
+            # Truncate to 500 chars - prevents summarization prompt from becoming too large
             content_preview: str = content[:500] if len(content) > 500 else content
             formatted.append(f"{role.upper()}: {content_preview}")
 

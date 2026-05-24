@@ -34,6 +34,11 @@ def decide_retry_strategy(
     """
     Decide retry strategy based on evaluation scores.
 
+    Strategy selection logic:
+    - REDO: Fundamental issues (low accuracy/relevance, no sources) - needs fresh search
+    - FIX: Minor issues (low coherence/reasonableness) - can improve with same sources
+    - NONE: Quality acceptable or retry disabled
+
     Args:
         evaluation: Evaluation dict with scores
         sources: List of sources from tracker
@@ -55,11 +60,16 @@ def decide_retry_strategy(
     if not config.should_retry(evaluation, 0):
         return "none"
 
-    # REDO conditions (major issues)
+    # REDO: Major issues requiring fresh search
+    # - Low accuracy: wrong information, needs better sources
+    # - Low relevance: answered wrong question, needs better query
+    # - No sources: search failed, needs to try again
     if accuracy < 5.0 or relevance < 4.0 or len(sources) == 0:
         return "redo"
 
-    # FIX conditions (minor issues)
+    # FIX: Minor issues, existing sources are adequate
+    # - Low coherence: narrative needs improvement
+    # - Low reasonableness: analysis needs better logic
     return "fix"
 
 

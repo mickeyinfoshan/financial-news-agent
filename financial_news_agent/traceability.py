@@ -145,7 +145,7 @@ class TraceabilityTracker:
         finally:
             node.end(error=error)
 
-            # Log slow operations
+            # Log slow operations - helps identify performance bottlenecks
             if node.duration:
                 if node.category == "llm_call" and node.duration > 5.0:
                     logger.warning(f"Slow LLM call: {node.name} took {node.duration:.2f}s")

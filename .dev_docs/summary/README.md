@@ -12,13 +12,19 @@ Retrospective documentation written after features are implemented.
 
 ## Contents
 
-- `finnhub-integration.md` - Finnhub API integration summary
-- `dynamic-ticker-lookup.md` - Dynamic ticker lookup implementation notes
-- `documentation-update.md` - Documentation update summary
-- `context-window-management-implementation.md` - Context management implementation summary
+- `api-test-results.md` - API testing results and validation
+- `citation-numbering-fix.md` - Citation numbering system fixes
 - `citation-system-implementation.md` - Numbered citation system implementation
+- `context-window-management-implementation.md` - Context management implementation summary
+- `documentation-update.md` - Documentation update summary
+- `dynamic-ticker-lookup.md` - Dynamic ticker lookup implementation notes
+- `fastapi-implementation.md` - FastAPI web service implementation
+- `finnhub-integration.md` - Finnhub API integration summary
+- `harness_optimization_summary.md` - Harness evaluation optimization summary
 - `retry-mechanism.md` - Retry/fix mechanism for automatic quality improvement
 - `retry-mechanism-changes.md` - Updates and improvements to retry mechanism
+- `streaming-implementation.md` - Server-Sent Events streaming implementation
+- `timing-instrumentation-implementation.md` - Performance timing instrumentation
 
 ## What Goes Here
 

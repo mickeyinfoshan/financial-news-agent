@@ -31,7 +31,7 @@ def evaluate_response(answer: str, tracker: TraceabilityTracker, user_query: str
     # Extract citations from answer to determine which sources to include
     cited_indices: list[int] = extract_citations(answer)
 
-    # Validate citations against available sources
+    # Validate citations - catches hallucinated source numbers
     invalid_citations: list[int] = [idx for idx in cited_indices if idx < 1 or idx > len(tracker.sources)]
     if invalid_citations:
         logger.warning(f"Invalid citations detected: {invalid_citations} (valid range: 1-{len(tracker.sources)})")
@@ -39,14 +39,14 @@ def evaluate_response(answer: str, tracker: TraceabilityTracker, user_query: str
     # Build evaluation prompt with only cited sources
     sources_summary: str
     if cited_indices:
-        # Include only cited sources with their citation numbers
+        # Include only cited sources - reduces token usage and focuses evaluation
         sources_summary = "\n".join([
             f"[{idx}] {tracker.sources[idx-1].get('title', 'N/A')} ({tracker.sources[idx-1].get('source', 'N/A')}, {tracker.sources[idx-1].get('date', 'N/A')})"
             for idx in cited_indices
             if 1 <= idx <= len(tracker.sources)
         ])
     else:
-        # Fallback: use first 10 sources if no citations found
+        # Fallback for answers without citations - use first 10 sources
         sources_summary = "\n".join([
             f"- {s.get('title', 'N/A')} ({s.get('source', 'N/A')}, {s.get('date', 'N/A')})"
             for s in tracker.sources[:10]
@@ -97,7 +97,7 @@ Respond with ONLY a JSON object in this exact format:
         # Parse evaluation
         eval_text: str = response.choices[0].message.content.strip() if response.choices[0].message.content else "{}"
 
-        # Extract JSON if wrapped in markdown
+        # Extract JSON if wrapped in markdown - LLMs sometimes add code fences despite instructions
         if "```json" in eval_text:
             eval_text = eval_text.split("```json")[1].split("```")[0].strip()
         elif "```" in eval_text:

@@ -25,7 +25,13 @@ The Financial News Agent is built using a simple agent loop pattern with OpenAI 
 │      │                │             │
 │      ▼                │             │
 │  Execute Tool         │             │
-│  (NewsAPI Search)     │             │
+│  (Multi-Source News)  │             │
+│      │                │             │
+│  ┌───┴────────────┐   │             │
+│  │ NewsAPI        │   │             │
+│  │ Finnhub        │   │             │
+│  │ Marketaux      │   │             │
+│  └───┬────────────┘   │             │
 │      │                │             │
 │  Track Sources        │             │
 │      │                │             │
@@ -121,31 +127,46 @@ messages.append({
 
 ### 3. Tool: News Search
 
-The `search_financial_news` tool (`news_tool.py:44`) queries NewsAPI:
+The `search_financial_news` tool (`news_tool.py`) queries multiple news providers in parallel:
 
 ```python
 def execute_tool(tool_name: str, arguments: dict) -> list:
     if tool_name == "search_financial_news":
         query = arguments.get("query", "")
         days_back = arguments.get("days_back", 7)
+        company_name = arguments.get("company_name")
         
-        # Calculate date range
-        to_date = datetime.now()
-        from_date = to_date - timedelta(days=days_back)
+        # Get active providers (NewsAPI, Finnhub, Marketaux)
+        providers = get_active_providers()
         
-        # Call NewsAPI
-        url = "https://newsapi.org/v2/everything"
-        params = {
-            "q": query,
-            "from": from_date.strftime("%Y-%m-%d"),
-            "to": to_date.strftime("%Y-%m-%d"),
-            "sortBy": "publishedAt",
-            "language": "en",
-            "apiKey": os.getenv("NEWS_API_KEY")
-        }
+        # Search all providers in parallel
+        all_articles = []
+        with ThreadPoolExecutor(max_workers=len(providers)) as executor:
+            futures = [
+                executor.submit(provider.search, query, days_back, company_name, tracker)
+                for provider in providers
+            ]
+            for future in as_completed(futures):
+                articles = future.result()
+                all_articles.extend(articles)
         
-        response = requests.get(url, params=params)
-        data = response.json()
+        # Deduplicate by URL
+        seen_urls = set()
+        unique_articles = []
+        for article in all_articles:
+            if article["url"] not in seen_urls:
+                seen_urls.add(article["url"])
+                unique_articles.append(article)
+        
+        return unique_articles
+```
+
+**Provider System:**
+- **NewsAPI**: General financial news
+- **Finnhub**: Company-specific news with ticker lookup
+- **Marketaux**: Additional financial news source
+- Providers activate automatically based on API key availability
+- Protocol-based design allows easy addition of new sources
         
         return data.get("articles", [])[:10]  # Return top 10
 ```

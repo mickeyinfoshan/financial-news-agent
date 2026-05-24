@@ -130,10 +130,9 @@ def search_financial_news(
         try:
             date_str: str = article.get("published_at", "")
             if date_str:
-                # Handle both ISO format and other formats
-                # Remove timezone info to avoid comparison issues
+                # Remove timezone to avoid comparison issues between aware/naive datetimes
                 dt: datetime = datetime.fromisoformat(date_str.replace("Z", "+00:00"))
-                # Return as naive datetime for consistent comparison
+                # Return naive datetime - consistent comparison across all providers
                 return dt.replace(tzinfo=None)
         except (ValueError, TypeError) as e:
             logger.debug(f"Failed to parse date '{date_str}': {e}")
@@ -141,7 +140,7 @@ def search_financial_news(
 
     unique_articles.sort(key=parse_date, reverse=True)
 
-    # Return top 20 results
+    # Limit to 20 articles - balances coverage with token efficiency
     return unique_articles[:20]
 
 
