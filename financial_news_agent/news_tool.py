@@ -10,9 +10,10 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from functools import lru_cache
 import requests
 
+from .types import ArticleData
+
 if TYPE_CHECKING:
     from .traceability import TraceabilityTracker
-    from .types import ArticleData
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -395,7 +396,7 @@ def search_financial_news(
             unique_articles.append(article)
 
     # Sort by published date (most recent first)
-    def parse_date(article: 'ArticleData') -> datetime:
+    def parse_date(article: ArticleData) -> datetime:
         try:
             date_str: str = article.get("published_at", "")
             if date_str:

@@ -2,12 +2,11 @@
 
 import logging
 from time import perf_counter
-from typing import Any, TYPE_CHECKING
+from typing import Any
 from contextlib import contextmanager
 from threading import Lock
 
-if TYPE_CHECKING:
-    from .types import SourceData, ToolCallRecord, TimingSummary, TraceData, TimingNodeDict
+from .types import SourceData, ToolCallRecord, TimingSummary, TraceData
 
 logger = logging.getLogger(__name__)
 
