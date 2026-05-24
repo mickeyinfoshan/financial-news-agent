@@ -247,7 +247,13 @@ financial_news_agent/
 ├── __init__.py
 ├── __main__.py          # CLI entry point
 ├── api_server.py        # API server entry point
-├── agent.py             # Main agent loop with retry wrapper
+├── agent/               # Main agent loop (modular implementation)
+│   ├── __init__.py      # Public API exports
+│   ├── prompts.py       # System prompt configuration
+│   ├── query_rewriter.py # Multi-turn context resolution
+│   ├── shared.py        # Shared business logic
+│   ├── sync.py          # Synchronous execution with retry
+│   └── streaming.py     # Async streaming execution with retry
 ├── news_tool.py         # Multi-source news orchestration
 ├── news_sources/        # News provider implementations
 │   ├── __init__.py      # Exports all providers

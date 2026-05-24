@@ -14,7 +14,7 @@ Main application code. All core business logic lives here.
 
 - `__main__.py` - CLI entry point for running the agent
 - `api_server.py` - FastAPI web service entry point
-- `agent.py` - Main agent loop with LLM orchestration and tool calling
+- `agent/` - Main agent loop with LLM orchestration and tool calling (modular implementation)
 - `news_tool.py` - Multi-source news retrieval orchestration
 - `news_sources/` - News provider implementations (NewsAPI, Finnhub, Marketaux)
 - `evaluator.py` - Self-evaluation logic for quality validation
