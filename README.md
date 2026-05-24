@@ -1,5 +1,8 @@
 # Financial News Agent
 
+[![Tests](https://github.com/mickeyinfoshan/financial-news-agent/actions/workflows/tests.yml/badge.svg)](https://github.com/mickeyinfoshan/financial-news-agent/actions/workflows/tests.yml)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+
 AI agent that searches recent financial news and provides analysis with storylines and future impact assessments.
 
 ## Features
