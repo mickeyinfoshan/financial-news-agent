@@ -197,7 +197,7 @@ def _extract_ticker(query: str) -> str:
     return words[0].strip().upper() if words else query.strip().upper()
 
 
-def _search_newsapi(query: str, days_back: int = 7) -> list['ArticleData']:
+def _search_newsapi(query: str, days_back: int = 7) -> list[ArticleData]:
     """
     Search for financial news using NewsAPI.
 
@@ -257,7 +257,7 @@ def _search_newsapi(query: str, days_back: int = 7) -> list['ArticleData']:
         return []
 
 
-def _search_finnhub_news(query: str, days_back: int = 7, company_name: str | None = None) -> list['ArticleData']:
+def _search_finnhub_news(query: str, days_back: int = 7, company_name: str | None = None) -> list[ArticleData]:
     """
     Search for financial news using Finnhub.
 
@@ -319,7 +319,7 @@ def _search_finnhub_news(query: str, days_back: int = 7, company_name: str | Non
         return []
 
 
-def _search_newsapi_timed(query: str, days_back: int, tracker: 'TraceabilityTracker | None') -> list['ArticleData']:
+def _search_newsapi_timed(query: str, days_back: int, tracker: 'TraceabilityTracker | None') -> list[ArticleData]:
     """NewsAPI search with timing."""
     if tracker:
         with tracker.time_operation("NewsAPI Request", "api_call", {"query": query, "days_back": days_back}):
@@ -333,7 +333,7 @@ def _search_finnhub_news_timed(
     days_back: int,
     company_name: str | None,
     tracker: 'TraceabilityTracker | None'
-) -> list['ArticleData']:
+) -> list[ArticleData]:
     """Finnhub search with timing."""
     if tracker:
         metadata: dict[str, Any] = {"query": query, "days_back": days_back, "company_name": company_name}
@@ -348,7 +348,7 @@ def search_financial_news(
     days_back: int = 7,
     company_name: str | None = None,
     tracker: 'TraceabilityTracker | None' = None
-) -> list['ArticleData']:
+) -> list[ArticleData]:
     """
     Search for financial news using both NewsAPI and Finnhub.
 
@@ -413,7 +413,7 @@ def search_financial_news(
     return unique_articles[:20]
 
 
-def execute_tool(tool_name: str, arguments: dict[str, Any], tracker: 'TraceabilityTracker | None' = None) -> list['ArticleData']:
+def execute_tool(tool_name: str, arguments: dict[str, Any], tracker: 'TraceabilityTracker | None' = None) -> list[ArticleData]:
     """
     Execute the news search tool.
 

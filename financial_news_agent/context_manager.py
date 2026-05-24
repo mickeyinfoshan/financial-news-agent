@@ -17,7 +17,7 @@ from .types import ContextConfig, MessageDict, ArticleData
 logger = logging.getLogger(__name__)
 
 
-def load_config() -> 'ContextConfig':
+def load_config() -> ContextConfig:
     """Load context management configuration from environment variables.
 
     Returns:
@@ -33,7 +33,7 @@ def load_config() -> 'ContextConfig':
     }
 
 
-def compress_tool_result(articles: list['ArticleData'], aggressive: bool = False, start_id: int = 1) -> list[dict[str, Any]]:
+def compress_tool_result(articles: list[ArticleData], aggressive: bool = False, start_id: int = 1) -> list[dict[str, Any]]:
     """Compress tool result articles to save tokens.
 
     Tier 1 (always): Keep only essential fields (title, source, url, published_at)
@@ -71,7 +71,7 @@ def compress_tool_result(articles: list['ArticleData'], aggressive: bool = False
     return compressed
 
 
-def summarize_history(messages: list['MessageDict'], client: OpenAI, recent_count: int = 4) -> str:
+def summarize_history(messages: list[MessageDict], client: OpenAI, recent_count: int = 4) -> str:
     """Summarize middle conversation history using LLM.
 
     Preserves system message and recent N messages, summarizes everything in between.
@@ -156,7 +156,7 @@ def manage_context(
     client: OpenAI,
     config: 'ContextConfig | None' = None,
     tracker: 'TraceabilityTracker | None' = None
-) -> list['MessageDict']:
+) -> list[MessageDict]:
     """Main context management function - checks and compresses context.
 
     Monitors token usage and message count. When thresholds are exceeded,

@@ -57,7 +57,7 @@ Be thorough - you can call the tool multiple times with different queries if nee
 Base your analysis strictly on the sources you find and cite them appropriately."""
 
 
-def create_conversation() -> list['MessageDict']:
+def create_conversation() -> list[MessageDict]:
     """Create a new conversation with initialized system message.
 
     Returns:
@@ -66,7 +66,7 @@ def create_conversation() -> list['MessageDict']:
     return [{"role": "system", "content": _SYSTEM_PROMPT}]
 
 
-def rewrite_query_with_context(user_query: str, messages: list['MessageDict'], client: OpenAI) -> str:
+def rewrite_query_with_context(user_query: str, messages: list[MessageDict], client: OpenAI) -> str:
     """
     Rewrite user query to be self-contained using conversation context.
 
@@ -165,7 +165,7 @@ REWRITTEN QUERY:"""
         return user_query
 
 
-def run_agent(user_query: str, messages: list['MessageDict']) -> tuple['AgentResult', list['MessageDict']]:
+def run_agent(user_query: str, messages: list[MessageDict]) -> tuple[AgentResult, list[MessageDict]]:
     """
     Run the financial news agent.
 
@@ -327,7 +327,7 @@ def run_agent(user_query: str, messages: list['MessageDict']) -> tuple['AgentRes
     return result, messages
 
 
-def run_agent_with_retry(user_query: str, messages: list['MessageDict']) -> tuple['AgentResult', list['MessageDict']]:
+def run_agent_with_retry(user_query: str, messages: list[MessageDict]) -> tuple[AgentResult, list[MessageDict]]:
     """
     Run agent with retry/fix mechanism for low-quality responses.
 
@@ -469,7 +469,7 @@ def _merge_tool_call_delta(accumulated: list[dict[str, Any]], deltas: list[Any])
 
 async def run_agent_stream(
     user_query: str,
-    messages: list['MessageDict']
+    messages: list[MessageDict]
 ) -> AsyncGenerator[dict[str, Any], None]:
     """
     Async generator that yields events during agent execution.

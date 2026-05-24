@@ -15,7 +15,7 @@ class RetryConfig:
         self.strategy: str = os.getenv("RETRY_STRATEGY", "auto")
         self.show_attempts: bool = os.getenv("RETRY_SHOW_ATTEMPTS", "true").lower() == "true"
 
-    def should_retry(self, evaluation: 'EvaluationResult', attempt: int) -> bool:
+    def should_retry(self, evaluation: EvaluationResult, attempt: int) -> bool:
         """Check if retry should be attempted."""
         if not self.enabled or attempt >= self.max_attempts:
             return False
@@ -27,7 +27,7 @@ class RetryConfig:
 
 
 def decide_retry_strategy(
-    evaluation: 'EvaluationResult',
+    evaluation: EvaluationResult,
     sources: list['SourceData'],
     config: RetryConfig
 ) -> str:
@@ -63,7 +63,7 @@ def decide_retry_strategy(
     return "fix"
 
 
-def build_fix_prompt(evaluation: 'EvaluationResult', original_query: str) -> str:
+def build_fix_prompt(evaluation: EvaluationResult, original_query: str) -> str:
     """
     Build a prompt to fix the existing answer.
 
@@ -109,7 +109,7 @@ Provide an improved version of your answer to the original query: "{original_que
     return prompt
 
 
-def build_redo_prompt(evaluation: 'EvaluationResult', original_query: str) -> str:
+def build_redo_prompt(evaluation: EvaluationResult, original_query: str) -> str:
     """
     Build a prompt to redo the answer from scratch.
 

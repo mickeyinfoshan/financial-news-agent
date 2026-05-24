@@ -1,5 +1,7 @@
 """Traceability tracker for agent operations."""
 
+from __future__ import annotations  # 允许类内部自引用
+
 import logging
 from time import perf_counter
 from typing import Any
@@ -38,7 +40,7 @@ class TimingNode:
             self.duration = self.end_time - self.start_time
         self.error = error
 
-    def add_child(self, child: 'TimingNode') -> None:
+    def add_child(self, child: TimingNode) -> None:
         """Add a child timing node."""
         self.children.append(child)
 

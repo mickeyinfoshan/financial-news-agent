@@ -11,7 +11,7 @@ from .types import EvaluationResult
 logger = logging.getLogger(__name__)
 
 
-def evaluate_response(answer: str, tracker: 'TraceabilityTracker', user_query: str | None = None) -> 'EvaluationResult':
+def evaluate_response(answer: str, tracker: TraceabilityTracker, user_query: str | None = None) -> EvaluationResult:
     """
     Evaluate the agent's response using LLM.
 
