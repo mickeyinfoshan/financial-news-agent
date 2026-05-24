@@ -190,10 +190,11 @@ def run_agent(user_query: str, messages: list[MessageDict]) -> tuple[AgentResult
     tools: list[dict[str, Any]] = [get_tool_schema()]
 
     # Agent loop (max 10 iterations)
+    MAX_ITERATIONS = 10
     final_answer: str | None = None
     total_tokens: int = 0  # Track cumulative token usage
 
-    for iteration in range(10):
+    for iteration in range(MAX_ITERATIONS):
         logger.debug(f"[Iteration {iteration + 1}]")
 
         with tracker.time_operation(f"Iteration {iteration + 1}", "iteration", {"iteration": iteration + 1}):
@@ -208,12 +209,16 @@ def run_agent(user_query: str, messages: list[MessageDict]) -> tuple[AgentResult
                     "has_tools": True
                 }
 
+                # On final iteration, force final answer (no tools)
+                is_final_iteration = (iteration == MAX_ITERATIONS - 1)
+                tool_choice_param = "none" if is_final_iteration else "auto"
+
                 with tracker.time_operation("LLM Reasoning Call", "llm_call", llm_metadata) as timing_node:
                     response = client.chat.completions.create(
                         model=os.getenv("OPENAI_MODEL", "gpt-4.5"),
                         messages=messages,  # type: ignore[arg-type]
                         tools=tools,  # type: ignore[arg-type]
-                        tool_choice="auto",
+                        tool_choice=tool_choice_param,
                         temperature=0.7,
                         max_tokens=2000
                     )
@@ -492,8 +497,9 @@ async def run_agent_stream(
     tools = [get_tool_schema()]
     final_answer = None
     total_tokens = 0
+    MAX_ITERATIONS = 10
 
-    for iteration in range(10):
+    for iteration in range(MAX_ITERATIONS):
         yield {"event": "iteration_start", "data": {"iteration": iteration + 1}}
 
         # Manage context (note: manage_context expects sync client, but we'll handle it)
@@ -501,12 +507,16 @@ async def run_agent_stream(
         # messages = manage_context(messages, total_tokens, client, config)
 
         try:
+            # On final iteration, force final answer (no tools)
+            is_final_iteration = (iteration == MAX_ITERATIONS - 1)
+            tool_choice_param = "none" if is_final_iteration else "auto"
+
             # Always use stream=True
             stream = await client.chat.completions.create(
                 model=os.getenv("OPENAI_MODEL", "gpt-4.5"),
                 messages=messages,
                 tools=tools,
-                tool_choice="auto",
+                tool_choice=tool_choice_param,
                 temperature=0.7,
                 max_tokens=2000,
                 stream=True
