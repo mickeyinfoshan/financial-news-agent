@@ -17,5 +17,5 @@ def extract_citations(text: str) -> list[int]:
         >>> extract_citations("Apple stock rose [1]. Analysts predict growth [2][3].")
         [1, 2, 3]
     """
-    citations = re.findall(r'\[(\d+)\]', text)
+    citations: list[str] = re.findall(r'\[(\d+)\]', text)
     return sorted(set(int(c) for c in citations if c.isdigit()))

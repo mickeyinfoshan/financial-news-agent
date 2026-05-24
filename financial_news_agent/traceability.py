@@ -2,9 +2,12 @@
 
 import logging
 from time import perf_counter
-from typing import Any, Optional
+from typing import Any, TYPE_CHECKING
 from contextlib import contextmanager
 from threading import Lock
+
+if TYPE_CHECKING:
+    from .types import SourceData, ToolCallRecord, TimingSummary, TraceData, TimingNodeDict
 
 logger = logging.getLogger(__name__)
 
@@ -12,37 +15,37 @@ logger = logging.getLogger(__name__)
 class TimingNode:
     """Represents a single timing measurement in the hierarchy."""
 
-    def __init__(self, name: str, category: str, parent: Optional['TimingNode'] = None):
-        self.name = name
-        self.category = category
-        self.parent = parent
-        self.children: list['TimingNode'] = []
+    def __init__(self, name: str, category: str, parent: 'TimingNode | None' = None) -> None:
+        self.name: str = name
+        self.category: str = category
+        self.parent: TimingNode | None = parent
+        self.children: list[TimingNode] = []
 
-        self.start_time: Optional[float] = None
-        self.end_time: Optional[float] = None
-        self.duration: Optional[float] = None
+        self.start_time: float | None = None
+        self.end_time: float | None = None
+        self.duration: float | None = None
 
         self.metadata: dict[str, Any] = {}
-        self.error: Optional[str] = None
+        self.error: str | None = None
 
-    def start(self):
+    def start(self) -> None:
         """Start timing this node."""
         self.start_time = perf_counter()
 
-    def end(self, error: Optional[str] = None):
+    def end(self, error: str | None = None) -> None:
         """End timing this node."""
         self.end_time = perf_counter()
         if self.start_time:
             self.duration = self.end_time - self.start_time
         self.error = error
 
-    def add_child(self, child: 'TimingNode'):
+    def add_child(self, child: 'TimingNode') -> None:
         """Add a child timing node."""
         self.children.append(child)
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for serialization."""
-        result = {
+        result: dict[str, Any] = {
             "name": self.name,
             "category": self.category,
             "duration_ms": round(self.duration * 1000, 2) if self.duration else None,
@@ -61,21 +64,21 @@ class TimingNode:
 class TraceabilityTracker:
     """Tracks sources, tool calls, reasoning steps, and timing for traceability."""
 
-    def __init__(self):
-        self.sources = []
-        self.tool_calls = []
-        self.reasoning_steps = []
+    def __init__(self) -> None:
+        self.sources: list[SourceData] = []
+        self.tool_calls: list[ToolCallRecord] = []
+        self.reasoning_steps: list[str] = []
 
         # Timing infrastructure
-        self._timing_root: Optional[TimingNode] = None
+        self._timing_root: TimingNode | None = None
         self._timing_stack: list[TimingNode] = []
-        self._lock = Lock()
+        self._lock: Lock = Lock()
 
-    def add_source(self, source_data: dict):
+    def add_source(self, source_data: SourceData) -> None:
         """Add a source (news article) to the tracker."""
         self.sources.append(source_data)
 
-    def add_tool_call(self, tool_name: str, args: dict, result: Any):
+    def add_tool_call(self, tool_name: str, args: dict[str, Any], result: Any) -> None:
         """Add a tool call record."""
         self.tool_calls.append({
             "tool": tool_name,
@@ -83,12 +86,12 @@ class TraceabilityTracker:
             "result_summary": self._summarize_result(result)
         })
 
-    def add_reasoning(self, step: str):
+    def add_reasoning(self, step: str) -> None:
         """Add a reasoning step from LLM output."""
         if step and step.strip():
             self.reasoning_steps.append(step.strip())
 
-    def _summarize_result(self, result: Any) -> dict:
+    def _summarize_result(self, result: Any) -> dict[str, Any]:
         """Summarize tool result for logging."""
         if isinstance(result, list):
             return {"type": "list", "count": len(result)}
@@ -102,7 +105,7 @@ class TraceabilityTracker:
         self,
         name: str,
         category: str,
-        metadata: Optional[dict] = None
+        metadata: dict[str, Any] | None = None
     ):
         """Context manager for timing an operation.
 
@@ -116,8 +119,8 @@ class TraceabilityTracker:
                 response = client.chat.completions.create(...)
         """
         with self._lock:
-            parent = self._timing_stack[-1] if self._timing_stack else None
-            node = TimingNode(name, category, parent)
+            parent: TimingNode | None = self._timing_stack[-1] if self._timing_stack else None
+            node: TimingNode = TimingNode(name, category, parent)
 
             if metadata:
                 node.metadata.update(metadata)
@@ -131,7 +134,7 @@ class TraceabilityTracker:
             self._timing_stack.append(node)
 
         node.start()
-        error = None
+        error: str | None = None
 
         try:
             yield node
@@ -153,7 +156,7 @@ class TraceabilityTracker:
             with self._lock:
                 self._timing_stack.pop()
 
-    def get_timing_summary(self) -> dict:
+    def get_timing_summary(self) -> TimingSummary:
         """Get timing summary with key metrics.
 
         Returns:
@@ -167,11 +170,11 @@ class TraceabilityTracker:
             }
 
         # Calculate breakdown by category
-        breakdown = {}
+        breakdown: dict[str, Any] = {}
 
-        def collect_by_category(node: TimingNode):
+        def collect_by_category(node: TimingNode) -> None:
             if node.duration:
-                category = node.category
+                category: str = node.category
                 if category not in breakdown:
                     breakdown[category] = {
                         "total_ms": 0,
@@ -201,16 +204,16 @@ class TraceabilityTracker:
             "hierarchy": self._timing_root.to_dict() if self._timing_root else None
         }
 
-    def get_trace(self) -> dict:
+    def get_trace(self) -> TraceData:
         """Get complete trace data including timing."""
-        trace = {
+        trace: TraceData = {
             "sources": self.sources,
             "tool_calls": self.tool_calls,
             "reasoning_steps": self.reasoning_steps
         }
 
         # Add timing data
-        timing_summary = self.get_timing_summary()
+        timing_summary: TimingSummary = self.get_timing_summary()
         if timing_summary["total_duration_ms"] > 0:
             trace["timing"] = timing_summary
 

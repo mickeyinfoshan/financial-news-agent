@@ -8,16 +8,17 @@ This module provides functions to manage the conversation context window by:
 
 import os
 import logging
-from typing import Optional, TYPE_CHECKING
+from typing import Any, TYPE_CHECKING
 from openai import OpenAI
 
 if TYPE_CHECKING:
     from .traceability import TraceabilityTracker
+    from .types import ContextConfig, MessageDict, ArticleData
 
 logger = logging.getLogger(__name__)
 
 
-def load_config() -> dict:
+def load_config() -> 'ContextConfig':
     """Load context management configuration from environment variables.
 
     Returns:
@@ -33,7 +34,7 @@ def load_config() -> dict:
     }
 
 
-def compress_tool_result(articles: list, aggressive: bool = False, start_id: int = 1) -> list:
+def compress_tool_result(articles: list['ArticleData'], aggressive: bool = False, start_id: int = 1) -> list[dict[str, Any]]:
     """Compress tool result articles to save tokens.
 
     Tier 1 (always): Keep only essential fields (title, source, url, published_at)
@@ -52,13 +53,14 @@ def compress_tool_result(articles: list, aggressive: bool = False, start_id: int
         return []
 
     # Tier 2: Limit number of articles if aggressive mode
+    compressed_articles: list[ArticleData] = articles
     if aggressive:
-        articles = articles[:10]
-        logger.info(f"Aggressive compression: limited to {len(articles)} articles")
+        compressed_articles = articles[:10]
+        logger.info(f"Aggressive compression: limited to {len(compressed_articles)} articles")
 
     # Tier 1: Keep only essential fields and add source numbering
-    compressed = []
-    for idx, article in enumerate(articles, start_id):
+    compressed: list[dict[str, Any]] = []
+    for idx, article in enumerate(compressed_articles, start_id):
         compressed.append({
             "id": idx,
             "title": article.get("title", ""),
@@ -70,7 +72,7 @@ def compress_tool_result(articles: list, aggressive: bool = False, start_id: int
     return compressed
 
 
-def summarize_history(messages: list, client: OpenAI, recent_count: int = 4) -> str:
+def summarize_history(messages: list['MessageDict'], client: OpenAI, recent_count: int = 4) -> str:
     """Summarize middle conversation history using LLM.
 
     Preserves system message and recent N messages, summarizes everything in between.
@@ -89,30 +91,30 @@ def summarize_history(messages: list, client: OpenAI, recent_count: int = 4) -> 
         return ""
 
     # Extract middle messages (skip system message at index 0 and recent messages)
-    middle_messages = messages[1:-(recent_count)] if recent_count > 0 else messages[1:]
+    middle_messages: list[MessageDict] = messages[1:-(recent_count)] if recent_count > 0 else messages[1:]
 
     if not middle_messages:
         logger.info("No middle messages to summarize")
         return ""
 
     # Format messages for summarization (truncate long content)
-    formatted = []
+    formatted: list[str] = []
     for msg in middle_messages:
-        role = msg.get("role", "")
-        content = msg.get("content", "")
+        role: str = msg.get("role", "")
+        content: str | None = msg.get("content", "")
 
         if content:
             # Truncate long content to avoid overwhelming the summarization prompt
-            content_preview = content[:500] if len(content) > 500 else content
+            content_preview: str = content[:500] if len(content) > 500 else content
             formatted.append(f"{role.upper()}: {content_preview}")
 
     if not formatted:
         logger.info("No content to summarize")
         return ""
 
-    history_text = "\n\n".join(formatted)
+    history_text: str = "\n\n".join(formatted)
 
-    prompt = f"""Summarize the following conversation history between a user and a financial news agent.
+    prompt: str = f"""Summarize the following conversation history between a user and a financial news agent.
 
 CONVERSATION HISTORY:
 {history_text}
@@ -140,7 +142,7 @@ Format as a narrative paragraph, not bullet points."""
             max_tokens=500
         )
 
-        summary = response.choices[0].message.content.strip()
+        summary: str = response.choices[0].message.content.strip()
         logger.info(f"Summarization complete: {len(summary)} characters")
         return summary
 
@@ -150,12 +152,12 @@ Format as a narrative paragraph, not bullet points."""
 
 
 def manage_context(
-    messages: list,
+    messages: list['MessageDict'],
     total_tokens: int,
     client: OpenAI,
-    config: Optional[dict] = None,
-    tracker: Optional['TraceabilityTracker'] = None
-) -> list:
+    config: 'ContextConfig | None' = None,
+    tracker: 'TraceabilityTracker | None' = None
+) -> list['MessageDict']:
     """Main context management function - checks and compresses context.
 
     Monitors token usage and message count. When thresholds are exceeded,
@@ -180,16 +182,16 @@ def manage_context(
         logger.debug("Context compression disabled")
         return messages
 
-    message_count = len(messages)
+    message_count: int = len(messages)
 
     logger.info(f"Context: {total_tokens} tokens, {message_count} messages")
 
     # Check if summarization needed
-    token_exceeded = total_tokens > config["token_threshold"]
-    message_exceeded = message_count > config["message_threshold"]
+    token_exceeded: bool = total_tokens > config["token_threshold"]
+    message_exceeded: bool = message_count > config["message_threshold"]
 
     if token_exceeded or message_exceeded:
-        reason = []
+        reason: list[str] = []
         if token_exceeded:
             reason.append(f"tokens ({total_tokens} > {config['token_threshold']})")
         if message_exceeded:
@@ -199,12 +201,13 @@ def manage_context(
         logger.info("Summarizing conversation history...")
 
         # Generate summary with timing
-        summary_metadata = {
+        summary_metadata: dict[str, Any] = {
             "reason": "token_exceeded" if token_exceeded else "message_exceeded",
             "tokens": total_tokens,
             "messages": message_count
         }
 
+        summary: str
         if tracker:
             with tracker.time_operation("Conversation Summarization", "llm_call", summary_metadata):
                 summary = summarize_history(messages, client, config["recent_messages"])
@@ -213,12 +216,12 @@ def manage_context(
 
         if summary:
             # Replace middle messages with summary
-            recent_count = config["recent_messages"]
-            system_msg = messages[0]
-            recent_msgs = messages[-(recent_count):] if recent_count > 0 else []
+            recent_count: int = config["recent_messages"]
+            system_msg: MessageDict = messages[0]
+            recent_msgs: list[MessageDict] = messages[-(recent_count):] if recent_count > 0 else []
 
             # Create new messages list: system + summary + recent messages
-            new_messages = [
+            new_messages: list[MessageDict] = [
                 system_msg,
                 {
                     "role": "system",

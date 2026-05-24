@@ -1,33 +1,37 @@
 """Retry/fix mechanism for low-quality responses."""
 
 import os
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .types import EvaluationResult, SourceData
 
 
 class RetryConfig:
     """Configuration for retry mechanism."""
 
-    def __init__(self):
-        self.enabled = os.getenv("RETRY_ENABLE", "true").lower() == "true"
-        self.threshold_overall = float(os.getenv("RETRY_THRESHOLD_OVERALL", "6.0"))
-        self.threshold_accuracy = float(os.getenv("RETRY_THRESHOLD_ACCURACY", "5.0"))
-        self.max_attempts = int(os.getenv("RETRY_MAX_ATTEMPTS", "1"))
-        self.strategy = os.getenv("RETRY_STRATEGY", "auto")
-        self.show_attempts = os.getenv("RETRY_SHOW_ATTEMPTS", "true").lower() == "true"
+    def __init__(self) -> None:
+        self.enabled: bool = os.getenv("RETRY_ENABLE", "true").lower() == "true"
+        self.threshold_overall: float = float(os.getenv("RETRY_THRESHOLD_OVERALL", "6.0"))
+        self.threshold_accuracy: float = float(os.getenv("RETRY_THRESHOLD_ACCURACY", "5.0"))
+        self.max_attempts: int = int(os.getenv("RETRY_MAX_ATTEMPTS", "1"))
+        self.strategy: str = os.getenv("RETRY_STRATEGY", "auto")
+        self.show_attempts: bool = os.getenv("RETRY_SHOW_ATTEMPTS", "true").lower() == "true"
 
-    def should_retry(self, evaluation: dict, attempt: int) -> bool:
+    def should_retry(self, evaluation: 'EvaluationResult', attempt: int) -> bool:
         """Check if retry should be attempted."""
         if not self.enabled or attempt >= self.max_attempts:
             return False
 
-        overall = evaluation.get("overall", 0)
-        accuracy = evaluation.get("accuracy", 0)
+        overall: float = evaluation.get("overall", 0)
+        accuracy: int = evaluation.get("accuracy", 0)
 
         return overall < self.threshold_overall or accuracy < self.threshold_accuracy
 
 
 def decide_retry_strategy(
-    evaluation: dict,
-    sources: list,
+    evaluation: 'EvaluationResult',
+    sources: list['SourceData'],
     config: RetryConfig
 ) -> str:
     """
@@ -46,9 +50,9 @@ def decide_retry_strategy(
         return "none" if config.strategy == "disabled" else config.strategy
 
     # Auto strategy selection
-    overall = evaluation.get("overall", 0)
-    accuracy = evaluation.get("accuracy", 0)
-    relevance = evaluation.get("relevance", 0)
+    overall: float = evaluation.get("overall", 0)
+    accuracy: int = evaluation.get("accuracy", 0)
+    relevance: int = evaluation.get("relevance", 0)
 
     # Check if retry needed
     if not config.should_retry(evaluation, 0):
@@ -62,7 +66,7 @@ def decide_retry_strategy(
     return "fix"
 
 
-def build_fix_prompt(evaluation: dict, original_query: str) -> str:
+def build_fix_prompt(evaluation: 'EvaluationResult', original_query: str) -> str:
     """
     Build a prompt to fix the existing answer.
 
@@ -73,8 +77,8 @@ def build_fix_prompt(evaluation: dict, original_query: str) -> str:
     Returns:
         Fix prompt string
     """
-    feedback = evaluation.get("feedback", "")
-    scores = {
+    feedback: str = evaluation.get("feedback", "")
+    scores: dict[str, int] = {
         "accuracy": evaluation.get("accuracy", 0),
         "relevance": evaluation.get("relevance", 0),
         "coherence": evaluation.get("coherence", 0),
@@ -82,7 +86,7 @@ def build_fix_prompt(evaluation: dict, original_query: str) -> str:
     }
 
     # Identify weak areas
-    weak_areas = [k for k, v in scores.items() if v < 6.0]
+    weak_areas: list[str] = [k for k, v in scores.items() if v < 6.0]
 
     prompt = f"""Your previous answer needs improvement. Here's the evaluation:
 
@@ -108,7 +112,7 @@ Provide an improved version of your answer to the original query: "{original_que
     return prompt
 
 
-def build_redo_prompt(evaluation: dict, original_query: str) -> str:
+def build_redo_prompt(evaluation: 'EvaluationResult', original_query: str) -> str:
     """
     Build a prompt to redo the answer from scratch.
 
@@ -119,7 +123,7 @@ def build_redo_prompt(evaluation: dict, original_query: str) -> str:
     Returns:
         Redo prompt string
     """
-    feedback = evaluation.get("feedback", "")
+    feedback: str = evaluation.get("feedback", "")
 
     prompt = f"""Your previous attempt had significant issues and needs to be redone.
 

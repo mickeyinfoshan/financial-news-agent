@@ -3,13 +3,18 @@
 import os
 import json
 import logging
+from typing import TYPE_CHECKING
 from openai import OpenAI
 from .utils import extract_citations
+
+if TYPE_CHECKING:
+    from .traceability import TraceabilityTracker
+    from .types import EvaluationResult
 
 logger = logging.getLogger(__name__)
 
 
-def evaluate_response(answer: str, tracker, user_query: str = None) -> dict:
+def evaluate_response(answer: str, tracker: 'TraceabilityTracker', user_query: str | None = None) -> 'EvaluationResult':
     """
     Evaluate the agent's response using LLM.
 
@@ -21,20 +26,21 @@ def evaluate_response(answer: str, tracker, user_query: str = None) -> dict:
     Returns:
         Evaluation dict with scores and feedback
     """
-    client = OpenAI(
+    client: OpenAI = OpenAI(
         api_key=os.getenv("OPENAI_API_KEY"),
         base_url=os.getenv("OPENAI_BASE_URL")
     )
 
     # Extract citations from answer to determine which sources to include
-    cited_indices = extract_citations(answer)
+    cited_indices: list[int] = extract_citations(answer)
 
     # Validate citations against available sources
-    invalid_citations = [idx for idx in cited_indices if idx < 1 or idx > len(tracker.sources)]
+    invalid_citations: list[int] = [idx for idx in cited_indices if idx < 1 or idx > len(tracker.sources)]
     if invalid_citations:
         logger.warning(f"Invalid citations detected: {invalid_citations} (valid range: 1-{len(tracker.sources)})")
 
     # Build evaluation prompt with only cited sources
+    sources_summary: str
     if cited_indices:
         # Include only cited sources with their citation numbers
         sources_summary = "\n".join([
@@ -50,14 +56,14 @@ def evaluate_response(answer: str, tracker, user_query: str = None) -> dict:
         ])
 
     # Include user query if provided
-    query_section = ""
+    query_section: str = ""
     if user_query:
         query_section = f"""USER QUERY:
 {user_query}
 
 """
 
-    evaluation_prompt = f"""Evaluate this financial news analysis response based on the criteria below.
+    evaluation_prompt: str = f"""Evaluate this financial news analysis response based on the criteria below.
 
 {query_section}ANSWER:
 {answer}
@@ -92,7 +98,7 @@ Respond with ONLY a JSON object in this exact format:
         )
 
         # Parse evaluation
-        eval_text = response.choices[0].message.content.strip()
+        eval_text: str = response.choices[0].message.content.strip()
 
         # Extract JSON if wrapped in markdown
         if "```json" in eval_text:
@@ -100,10 +106,10 @@ Respond with ONLY a JSON object in this exact format:
         elif "```" in eval_text:
             eval_text = eval_text.split("```")[1].split("```")[0].strip()
 
-        evaluation = json.loads(eval_text)
+        evaluation: EvaluationResult = json.loads(eval_text)
 
         # Calculate overall score
-        scores = [
+        scores: list[int] = [
             evaluation.get("accuracy", 3),
             evaluation.get("relevance", 3),
             evaluation.get("coherence", 3),
