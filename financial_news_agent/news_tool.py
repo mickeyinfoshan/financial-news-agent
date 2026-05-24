@@ -13,6 +13,8 @@ import requests
 if TYPE_CHECKING:
     from .traceability import TraceabilityTracker
     from .types import ArticleData
+else:
+    ArticleData = dict
 
 # Configure logging
 logger = logging.getLogger(__name__)
