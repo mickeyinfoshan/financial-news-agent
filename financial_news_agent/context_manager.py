@@ -8,12 +8,11 @@ This module provides functions to manage the conversation context window by:
 
 import os
 import logging
-from typing import Any, TYPE_CHECKING
+from typing import Any
 from openai import OpenAI
 
-if TYPE_CHECKING:
-    from .traceability import TraceabilityTracker
-    from .types import ContextConfig, MessageDict, ArticleData
+from .traceability import TraceabilityTracker
+from .types import ContextConfig, MessageDict, ArticleData
 
 logger = logging.getLogger(__name__)
 

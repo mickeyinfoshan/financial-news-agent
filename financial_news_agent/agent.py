@@ -3,16 +3,14 @@
 import os
 import json
 import logging
-from typing import Any, AsyncGenerator, TYPE_CHECKING
+from typing import Any, AsyncGenerator
 from openai import OpenAI, AsyncOpenAI
 from .traceability import TraceabilityTracker
 from .news_tool import get_tool_schema, execute_tool
 from .evaluator import evaluate_response
 from .context_manager import manage_context, compress_tool_result, load_config
 from .retry_manager import RetryConfig, decide_retry_strategy, build_fix_prompt, build_redo_prompt
-
-if TYPE_CHECKING:
-    from .types import AgentResult, MessageDict, EvaluationResult, ContextConfig, ArticleData
+from .types import AgentResult, MessageDict, EvaluationResult, ContextConfig, ArticleData
 
 logger = logging.getLogger(__name__)
 

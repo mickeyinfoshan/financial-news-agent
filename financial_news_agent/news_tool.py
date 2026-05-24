@@ -5,15 +5,13 @@ import re
 import time
 import logging
 from datetime import datetime, timedelta
-from typing import Any, TYPE_CHECKING
+from typing import Any
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from functools import lru_cache
 import requests
 
 from .types import ArticleData
-
-if TYPE_CHECKING:
-    from .traceability import TraceabilityTracker
+from .traceability import TraceabilityTracker
 
 # Configure logging
 logger = logging.getLogger(__name__)

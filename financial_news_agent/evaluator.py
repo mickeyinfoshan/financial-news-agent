@@ -3,13 +3,10 @@
 import os
 import json
 import logging
-from typing import TYPE_CHECKING
 from openai import OpenAI
 from .utils import extract_citations
-
-if TYPE_CHECKING:
-    from .traceability import TraceabilityTracker
-    from .types import EvaluationResult
+from .traceability import TraceabilityTracker
+from .types import EvaluationResult
 
 logger = logging.getLogger(__name__)
 

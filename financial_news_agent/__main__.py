@@ -1,12 +1,8 @@
 """CLI entry point for the financial news agent."""
 
-from typing import TYPE_CHECKING
-
 from .agent import run_agent_with_retry, create_conversation
 from .utils import extract_citations
-
-if TYPE_CHECKING:
-    from .types import AgentResult, MessageDict, EvaluationResult, RetryAttempt
+from .types import AgentResult, MessageDict, EvaluationResult, RetryAttempt
 
 
 def main() -> None:

@@ -1,10 +1,7 @@
 """Retry/fix mechanism for low-quality responses."""
 
 import os
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from .types import EvaluationResult, SourceData
+from .types import EvaluationResult, SourceData
 
 
 class RetryConfig:
