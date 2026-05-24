@@ -8,12 +8,6 @@ from threading import Lock
 
 if TYPE_CHECKING:
     from .types import SourceData, ToolCallRecord, TimingSummary, TraceData, TimingNodeDict
-else:
-    SourceData = dict
-    ToolCallRecord = dict
-    TimingSummary = dict
-    TraceData = dict
-    TimingNodeDict = dict
 
 logger = logging.getLogger(__name__)
 
