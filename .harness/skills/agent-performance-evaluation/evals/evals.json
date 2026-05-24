@@ -1,0 +1,20 @@
+{
+  "skill_name": "agent-performance-evaluation",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "hey can you run a performance test on the financial news agent? i want to see how it's doing with the latest changes",
+      "expected_output": "Should trigger the skill, execute the test suite against the financial news agent, collect metrics (evaluation scores, timing, token usage), and generate a markdown report with performance statistics"
+    },
+    {
+      "id": 2,
+      "prompt": "I need to benchmark the agent before we deploy. Can you measure its performance?",
+      "expected_output": "Should trigger the skill and run the predefined test queries against the agent, producing a comprehensive performance report with category breakdowns and historical comparison if available"
+    },
+    {
+      "id": 3,
+      "prompt": "test the agent and show me the evaluation scores and timing data",
+      "expected_output": "Should trigger the skill, execute test cases, and display a report with evaluation metrics (accuracy, relevance, coherence, reasonableness) and timing breakdown"
+    }
+  ]
+}
