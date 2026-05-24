@@ -16,3 +16,5 @@ build/
 htmlcov/
 .pytest_cache/
 .dev_process/
+coverage.xml
+htmlcov/
