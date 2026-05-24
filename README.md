@@ -1,6 +1,7 @@
 # Financial News Agent
 
 [![Tests](https://github.com/mickeyinfoshan/financial-news-agent/actions/workflows/tests.yml/badge.svg)](https://github.com/mickeyinfoshan/financial-news-agent/actions/workflows/tests.yml)
+[![codecov](https://codecov.io/gh/mickeyinfoshan/financial-news-agent/branch/main/graph/badge.svg)](https://codecov.io/gh/mickeyinfoshan/financial-news-agent)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 [![Type checked: mypy](https://img.shields.io/badge/type%20checked-mypy-blue.svg)](http://mypy-lang.org/)
