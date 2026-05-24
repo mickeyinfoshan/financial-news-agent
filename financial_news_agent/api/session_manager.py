@@ -12,6 +12,22 @@ class SessionManager:
         """Initialize session storage."""
         self._sessions: dict[str, dict[str, Any]] = {}
 
+    def _generate_title(self, messages: list[dict[str, Any]]) -> str:
+        """Generate session title from first user message.
+
+        Args:
+            messages: List of conversation messages
+
+        Returns:
+            Title string (first user message truncated to 60 chars, or "New conversation")
+        """
+        for msg in messages:
+            if msg.get("role") == "user" and msg.get("content"):
+                content = msg["content"].strip()
+                if content:
+                    return content[:60] + "..." if len(content) > 60 else content
+        return "New conversation"
+
     def create_session(self, messages: list[dict[str, Any]]) -> str:
         """Create a new session with initialized conversation.
 
@@ -29,6 +45,7 @@ class SessionManager:
             "messages": messages,
             "created_at": now,
             "last_activity": now,
+            "title": "New conversation",
             "metadata": {
                 "total_queries": 0,
                 "total_tokens": 0,
@@ -47,7 +64,11 @@ class SessionManager:
         Returns:
             Session data dict or None if not found
         """
-        return self._sessions.get(session_id)
+        session = self._sessions.get(session_id)
+        if session and "title" not in session:
+            # Lazy migration: add title to old sessions
+            session["title"] = self._generate_title(session["messages"])
+        return session
 
     def update_session(
         self,
@@ -70,6 +91,10 @@ class SessionManager:
         session = self._sessions.get(session_id)
         if not session:
             return False
+
+        # Update title if this is the first user message
+        if session["metadata"]["total_queries"] == 0:
+            session["title"] = self._generate_title(messages)
 
         # If result provided, embed it into the last assistant message
         if result and messages:
@@ -135,7 +160,8 @@ class SessionManager:
                 "session_id": s["session_id"],
                 "created_at": s["created_at"],
                 "last_activity": s["last_activity"],
-                "message_count": len(s["messages"])
+                "message_count": len(s["messages"]),
+                "title": s.get("title", self._generate_title(s["messages"]))
             }
             for s in paginated
         ]

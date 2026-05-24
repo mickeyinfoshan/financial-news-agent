@@ -3,5 +3,5 @@ export interface Session {
   created_at: string;
   last_activity: string;
   message_count: number;
-  preview?: string;
+  title: string;
 }

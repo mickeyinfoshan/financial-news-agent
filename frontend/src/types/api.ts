@@ -66,6 +66,7 @@ export type SessionListItem = {
   created_at: string;
   last_activity: string;
   message_count: number;
+  title: string;
 }
 
 export type SessionListResponse = {

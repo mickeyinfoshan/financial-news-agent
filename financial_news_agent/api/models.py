@@ -67,6 +67,7 @@ class SessionListItem(BaseModel):
     created_at: str
     last_activity: str
     message_count: int
+    title: str
 
 
 class SessionListResponse(BaseModel):

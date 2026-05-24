@@ -24,7 +24,14 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     set({ isLoadingSessions: true });
     try {
       const response = await apiListSessions(50, 0);
-      set({ sessions: response.sessions, isLoadingSessions: false });
+      const sessions: Session[] = response.sessions.map(s => ({
+        session_id: s.session_id,
+        created_at: s.created_at,
+        last_activity: s.last_activity,
+        message_count: s.message_count,
+        title: s.title
+      }));
+      set({ sessions, isLoadingSessions: false });
     } catch (error) {
       console.error('Failed to fetch sessions:', error);
       set({ isLoadingSessions: false });
@@ -39,7 +46,9 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         created_at: response.created_at,
         last_activity: response.created_at,
         message_count: response.message_count,
-        preview: initialQuery,
+        title: initialQuery
+          ? (initialQuery.length > 60 ? initialQuery.slice(0, 60) + '...' : initialQuery)
+          : 'New conversation'
       };
       set((state) => ({
         sessions: [newSession, ...state.sessions],

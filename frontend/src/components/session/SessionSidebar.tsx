@@ -2,13 +2,11 @@ import { useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Trash2, MessageSquare } from 'lucide-react';
 import { useSessionStore } from '@/store/sessionStore';
-import { useMessageStore } from '@/store/messageStore';
 import { formatRelativeTime } from '@/utils/formatting';
 import clsx from 'clsx';
 
 export default function SessionSidebar() {
   const { sessions, currentSessionId, fetchSessions, createSession, selectSession, deleteSession } = useSessionStore();
-  const { messagesBySession } = useMessageStore();
 
   useEffect(() => {
     fetchSessions();
@@ -23,12 +21,6 @@ export default function SessionSidebar() {
     if (confirm('Delete this session?')) {
       await deleteSession(sessionId);
     }
-  };
-
-  const getSessionPreview = (sessionId: string): string => {
-    const sessionMessages = messagesBySession[sessionId] || [];
-    const firstUserMessage = sessionMessages.find(m => m.role === 'user');
-    return firstUserMessage?.content || 'New conversation';
   };
 
   return (
@@ -56,7 +48,6 @@ export default function SessionSidebar() {
           <AnimatePresence mode="popLayout">
             {sessions.map((session, index) => {
               const isActive = session.session_id === currentSessionId;
-              const preview = getSessionPreview(session.session_id);
 
               return (
                 <motion.div
@@ -69,7 +60,7 @@ export default function SessionSidebar() {
                   onClick={() => selectSession(session.session_id)}
                 >
                   <div className="session-content">
-                    <div className="session-preview">{preview}</div>
+                    <div className="session-preview">{session.title}</div>
                     <div className="session-meta">
                       <span className="session-time">
                         {formatRelativeTime(session.last_activity)}
