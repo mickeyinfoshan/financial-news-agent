@@ -2,6 +2,10 @@
 
 [![Tests](https://github.com/mickeyinfoshan/financial-news-agent/actions/workflows/tests.yml/badge.svg)](https://github.com/mickeyinfoshan/financial-news-agent/actions/workflows/tests.yml)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+[![Type checked: mypy](https://img.shields.io/badge/type%20checked-mypy-blue.svg)](http://mypy-lang.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688.svg)](https://fastapi.tiangolo.com)
+[![OpenAI](https://img.shields.io/badge/OpenAI-GPT--5.5-412991.svg)](https://openai.com)
 
 AI agent that searches recent financial news and provides analysis with storylines and future impact assessments.
 
