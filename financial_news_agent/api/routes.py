@@ -1,11 +1,13 @@
 """API route handlers."""
 
+from __future__ import annotations
+
 import asyncio
 import json
 import logging
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import StreamingResponse
-from typing import Union
+from typing import AsyncGenerator
 
 from .models import (
     CreateSessionRequest,
@@ -16,6 +18,7 @@ from .models import (
     SessionMetadata,
     SessionMessagesResponse,
     SessionListResponse,
+    SessionListItem,
     DeleteSessionResponse,
     HealthResponse,
 )
@@ -27,8 +30,8 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1")
 
 
-@router.post("/session/create", response_model=Union[CreateSessionResponse, CreateSessionWithResultResponse])
-async def create_session(request: CreateSessionRequest):
+@router.post("/session/create", response_model=CreateSessionResponse | CreateSessionWithResultResponse)
+async def create_session(request: CreateSessionRequest) -> CreateSessionResponse | CreateSessionWithResultResponse:
     """Create a new session with optional initial query.
 
     If query is provided, runs the agent immediately and returns full result.
@@ -39,6 +42,9 @@ async def create_session(request: CreateSessionRequest):
         messages = create_conversation()
         session_id = session_manager.create_session(messages)
         session = session_manager.get_session(session_id)
+
+        if not session:
+            raise HTTPException(status_code=500, detail="Failed to create session")
 
         # If no query provided, return session metadata only
         if not request.query:
@@ -58,12 +64,18 @@ async def create_session(request: CreateSessionRequest):
         # Update session with result
         session_manager.update_session(session_id, updated_messages, result)
 
-        # Return full result with session_id
+        # Return full result with session_id (cast TypedDict to dict for Pydantic)
         return CreateSessionWithResultResponse(
             session_id=session_id,
             created_at=session["created_at"],
             message_count=len(updated_messages),
-            **result
+            answer=result["answer"],
+            sources=result["sources"],  # type: ignore[arg-type]
+            evaluation=result["evaluation"],  # type: ignore[arg-type]
+            tool_calls=result["tool_calls"],  # type: ignore[arg-type]
+            reasoning_steps=result["reasoning_steps"],
+            trace=result["trace"],  # type: ignore[arg-type]
+            retry_history=result.get("retry_history")  # type: ignore[arg-type]
         )
 
     except Exception as e:
@@ -72,7 +84,7 @@ async def create_session(request: CreateSessionRequest):
 
 
 @router.post("/session/{session_id}/query", response_model=QueryResponse)
-async def query_session(session_id: str, request: QueryRequest):
+async def query_session(session_id: str, request: QueryRequest) -> QueryResponse:
     """Ask a question in an existing session."""
     try:
         # Get session
@@ -90,7 +102,15 @@ async def query_session(session_id: str, request: QueryRequest):
         # Update session
         session_manager.update_session(session_id, updated_messages, result)
 
-        return QueryResponse(**result)
+        return QueryResponse(
+            answer=result["answer"],
+            sources=result["sources"],  # type: ignore[arg-type]
+            evaluation=result["evaluation"],  # type: ignore[arg-type]
+            tool_calls=result["tool_calls"],  # type: ignore[arg-type]
+            reasoning_steps=result["reasoning_steps"],
+            trace=result["trace"],  # type: ignore[arg-type]
+            retry_history=result.get("retry_history")  # type: ignore[arg-type]
+        )
 
     except HTTPException:
         raise
@@ -100,7 +120,7 @@ async def query_session(session_id: str, request: QueryRequest):
 
 
 @router.post("/session/{session_id}/query/stream")
-async def query_session_stream(session_id: str, request: QueryRequest):
+async def query_session_stream(session_id: str, request: QueryRequest) -> StreamingResponse:
     """
     Stream agent response in real-time using Server-Sent Events.
 
@@ -112,7 +132,7 @@ async def query_session_stream(session_id: str, request: QueryRequest):
         if not session:
             raise HTTPException(status_code=404, detail=f"Session {session_id} not found")
 
-        async def event_generator():
+        async def event_generator() -> AsyncGenerator[str, None]:
             """Generate SSE events."""
             try:
                 result = None
@@ -165,12 +185,12 @@ async def query_session_stream(session_id: str, request: QueryRequest):
 async def list_sessions(
     limit: int = Query(20, ge=1, le=100, description="Maximum number of sessions to return"),
     offset: int = Query(0, ge=0, description="Number of sessions to skip")
-):
+) -> SessionListResponse:
     """List all active sessions with pagination."""
     sessions, total = session_manager.list_sessions(limit=limit, offset=offset)
 
     return SessionListResponse(
-        sessions=sessions,
+        sessions=[SessionListItem(**s) for s in sessions],
         total=total,
         limit=limit,
         offset=offset
@@ -178,7 +198,7 @@ async def list_sessions(
 
 
 @router.get("/session/{session_id}", response_model=SessionMetadata)
-async def get_session(session_id: str):
+async def get_session(session_id: str) -> SessionMetadata:
     """Get session metadata."""
     session = session_manager.get_session(session_id)
     if not session:
@@ -194,7 +214,7 @@ async def get_session(session_id: str):
 
 
 @router.get("/session/{session_id}/messages", response_model=SessionMessagesResponse)
-async def get_session_messages(session_id: str):
+async def get_session_messages(session_id: str) -> SessionMessagesResponse:
     """Get full conversation history for a session."""
     session = session_manager.get_session(session_id)
     if not session:
@@ -202,12 +222,12 @@ async def get_session_messages(session_id: str):
 
     return SessionMessagesResponse(
         session_id=session["session_id"],
-        messages=session["messages"]
+        messages=session["messages"]  # type: ignore[arg-type]
     )
 
 
 @router.delete("/session/{session_id}", response_model=DeleteSessionResponse)
-async def delete_session(session_id: str):
+async def delete_session(session_id: str) -> DeleteSessionResponse:
     """Delete a session and its conversation history."""
     deleted = session_manager.delete_session(session_id)
     if not deleted:
@@ -217,6 +237,6 @@ async def delete_session(session_id: str):
 
 
 @router.get("/health", response_model=HealthResponse)
-async def health_check():
+async def health_check() -> HealthResponse:
     """Health check endpoint."""
     return HealthResponse(status="healthy", version="0.1.0")
