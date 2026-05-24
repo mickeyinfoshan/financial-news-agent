@@ -1,18 +1,22 @@
 """In-memory session management."""
 
+from __future__ import annotations
+
 import uuid
 from datetime import datetime, UTC
-from typing import Optional, Any
+from typing import Any
+
+from ..types import SessionData, SessionMetadataDict, MessageDict, AgentResult
 
 
 class SessionManager:
     """Manages agent conversation sessions in memory."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize session storage."""
-        self._sessions: dict[str, dict[str, Any]] = {}
+        self._sessions: dict[str, SessionData] = {}
 
-    def _generate_title(self, messages: list[dict[str, Any]]) -> str:
+    def _generate_title(self, messages: list[MessageDict]) -> str:
         """Generate session title from first user message.
 
         Args:
@@ -23,12 +27,14 @@ class SessionManager:
         """
         for msg in messages:
             if msg.get("role") == "user" and msg.get("content"):
-                content = msg["content"].strip()
+                content = msg.get("content")
                 if content:
-                    return content[:60] + "..." if len(content) > 60 else content
+                    content = content.strip()
+                    if content:
+                        return content[:60] + "..." if len(content) > 60 else content
         return "New conversation"
 
-    def create_session(self, messages: list[dict[str, Any]]) -> str:
+    def create_session(self, messages: list[MessageDict]) -> str:
         """Create a new session with initialized conversation.
 
         Args:
@@ -43,6 +49,7 @@ class SessionManager:
         self._sessions[session_id] = {
             "session_id": session_id,
             "messages": messages,
+            "result": None,
             "created_at": now,
             "last_activity": now,
             "title": "New conversation",
@@ -55,7 +62,7 @@ class SessionManager:
 
         return session_id
 
-    def get_session(self, session_id: str) -> Optional[dict[str, Any]]:
+    def get_session(self, session_id: str) -> SessionData | None:
         """Retrieve a session by ID.
 
         Args:
@@ -67,14 +74,14 @@ class SessionManager:
         session = self._sessions.get(session_id)
         if session and "title" not in session:
             # Lazy migration: add title to old sessions
-            session["title"] = self._generate_title(session["messages"])
+            session["title"] = self._generate_title(session["messages"])  # type: ignore[unreachable]
         return session
 
     def update_session(
         self,
         session_id: str,
-        messages: list[dict[str, Any]],
-        result: Optional[dict[str, Any]] = None
+        messages: list[MessageDict],
+        result: AgentResult | None = None
     ) -> bool:
         """Update session with new messages and optional result metadata.
 
@@ -107,7 +114,9 @@ class SessionManager:
                     messages[i]["tool_calls"] = result.get("tool_calls", [])
                     messages[i]["reasoning_steps"] = result.get("reasoning_steps", [])
                     messages[i]["trace"] = result.get("trace")
-                    messages[i]["retry_history"] = result.get("retry_history")
+                    retry_hist = result.get("retry_history")
+                    if retry_hist is not None:
+                        messages[i]["retry_history"] = retry_hist
                     break
 
         session["messages"] = messages
@@ -135,7 +144,7 @@ class SessionManager:
             return True
         return False
 
-    def list_sessions(self, limit: int = 20, offset: int = 0) -> tuple[list[dict[str, Any]], int]:
+    def list_sessions(self, limit: int = 20, offset: int = 0) -> tuple[list[SessionMetadataDict], int]:
         """List all sessions with pagination.
 
         Args:
@@ -155,7 +164,7 @@ class SessionManager:
         paginated = all_sessions[offset:offset + limit]
 
         # Return simplified metadata
-        session_list = [
+        session_list: list[SessionMetadataDict] = [
             {
                 "session_id": s["session_id"],
                 "created_at": s["created_at"],

@@ -1,5 +1,7 @@
 """FastAPI application initialization."""
 
+from __future__ import annotations
+
 import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -38,13 +40,13 @@ app.include_router(router)
 
 
 @app.on_event("startup")
-async def startup_event():
+async def startup_event() -> None:
     """Run on application startup."""
     logger.info("Starting Financial News Agent API")
     logger.info(f"CORS origins: {settings.cors_origins_list}")
 
 
 @app.on_event("shutdown")
-async def shutdown_event():
+async def shutdown_event() -> None:
     """Run on application shutdown."""
     logger.info("Shutting down Financial News Agent API")
