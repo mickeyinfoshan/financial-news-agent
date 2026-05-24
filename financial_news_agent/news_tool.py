@@ -5,20 +5,21 @@ import re
 import time
 import logging
 from datetime import datetime, timedelta
-from typing import List, Dict, Optional, TYPE_CHECKING
+from typing import Any, TYPE_CHECKING
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from functools import lru_cache
 import requests
 
 if TYPE_CHECKING:
     from .traceability import TraceabilityTracker
+    from .types import ArticleData
 
 # Configure logging
 logger = logging.getLogger(__name__)
 
 # Common company to ticker mapping (fast path for frequent queries)
 # Reduced to most common companies; API lookup handles the rest
-COMMON_TICKERS = {
+COMMON_TICKERS: dict[str, str] = {
     "nvidia": "NVDA",
     "apple": "AAPL",
     "microsoft": "MSFT",
@@ -36,7 +37,7 @@ COMMON_TICKERS = {
 
 
 @lru_cache(maxsize=500)
-def _search_symbol_finnhub(company_name: str, max_retries: int = 2) -> Optional[str]:
+def _search_symbol_finnhub(company_name: str, max_retries: int = 2) -> str | None:
     """
     Search for ticker symbol using Finnhub Symbol Search API with retry logic.
 
@@ -49,24 +50,24 @@ def _search_symbol_finnhub(company_name: str, max_retries: int = 2) -> Optional[
     Returns:
         Ticker symbol if found, None otherwise
     """
-    api_key = os.getenv("FINNHUB_API_KEY")
+    api_key: str | None = os.getenv("FINNHUB_API_KEY")
     if not api_key:
         return None
 
-    url = "https://finnhub.io/api/v1/search"
-    params = {
+    url: str = "https://finnhub.io/api/v1/search"
+    params: dict[str, str] = {
         "q": company_name,
         "token": api_key
     }
 
     for attempt in range(max_retries + 1):
         try:
-            response = requests.get(url, params=params, timeout=5)
+            response: requests.Response = requests.get(url, params=params, timeout=5)
 
             # Handle API rate limiting
             if response.status_code == 429:
                 if attempt < max_retries:
-                    wait_time = 2 ** attempt
+                    wait_time: int = 2 ** attempt
                     logger.warning(f"API rate limit hit for '{company_name}', retrying in {wait_time}s...")
                     time.sleep(wait_time)
                     continue
@@ -75,16 +76,16 @@ def _search_symbol_finnhub(company_name: str, max_retries: int = 2) -> Optional[
                     return None
 
             response.raise_for_status()
-            data = response.json()
+            data: dict[str, Any] = response.json()
 
             # Extract first result (highest relevance)
             if data.get("count", 0) > 0:
-                results = data.get("result", [])
+                results: list[dict[str, Any]] = data.get("result", [])
 
                 # Prefer Common Stock over ADRs and other types
                 for result in results:
                     if result.get("type") == "Common Stock":
-                        symbol = result.get("symbol")
+                        symbol: str | None = result.get("symbol")
                         if symbol:
                             logger.info(f"Found ticker via API: {company_name} -> {symbol}")
                             return symbol
@@ -113,7 +114,7 @@ def _search_symbol_finnhub(company_name: str, max_retries: int = 2) -> Optional[
     return None
 
 
-def get_tool_schema() -> dict:
+def get_tool_schema() -> dict[str, Any]:
     """Get OpenAI function calling schema for news search."""
     return {
         "type": "function",
@@ -177,7 +178,8 @@ def _extract_ticker(query: str) -> str:
 
     # If query is too long (>50 chars or >3 words), extract company name
     # This prevents 422 errors from Finnhub Symbol Search API
-    words = query.strip().split()
+    words: list[str] = query.strip().split()
+    company_name: str
     if len(query) > 50 or len(words) > 3:
         # Take first word as company name
         company_name = words[0] if words else query.strip()
@@ -188,7 +190,7 @@ def _extract_ticker(query: str) -> str:
         company_name = query.strip()
 
     # Try dynamic lookup via Finnhub Symbol Search API (primary method)
-    symbol = _search_symbol_finnhub(company_name)
+    symbol: str | None = _search_symbol_finnhub(company_name)
     if symbol:
         return symbol
 
@@ -196,7 +198,7 @@ def _extract_ticker(query: str) -> str:
     return words[0].strip().upper() if words else query.strip().upper()
 
 
-def _search_newsapi(query: str, days_back: int = 7) -> List[Dict[str, str]]:
+def _search_newsapi(query: str, days_back: int = 7) -> list['ArticleData']:
     """
     Search for financial news using NewsAPI.
 
@@ -207,18 +209,18 @@ def _search_newsapi(query: str, days_back: int = 7) -> List[Dict[str, str]]:
     Returns:
         List of news articles with metadata
     """
-    api_key = os.getenv("NEWS_API_KEY")
+    api_key: str | None = os.getenv("NEWS_API_KEY")
     if not api_key:
         logger.warning("NEWS_API_KEY not set, skipping NewsAPI")
         return []
 
     # Calculate date range
-    to_date = datetime.now()
-    from_date = to_date - timedelta(days=min(days_back, 30))
+    to_date: datetime = datetime.now()
+    from_date: datetime = to_date - timedelta(days=min(days_back, 30))
 
     # NewsAPI endpoint
-    url = "https://newsapi.org/v2/everything"
-    params = {
+    url: str = "https://newsapi.org/v2/everything"
+    params: dict[str, Any] = {
         "q": query,
         "from": from_date.strftime("%Y-%m-%d"),
         "to": to_date.strftime("%Y-%m-%d"),
@@ -229,15 +231,15 @@ def _search_newsapi(query: str, days_back: int = 7) -> List[Dict[str, str]]:
     }
 
     try:
-        response = requests.get(url, params=params, timeout=10)
+        response: requests.Response = requests.get(url, params=params, timeout=10)
         response.raise_for_status()
-        data = response.json()
+        data: dict[str, Any] = response.json()
 
         if data.get("status") != "ok":
             return []
 
         # Parse and structure articles
-        articles = []
+        articles: list[ArticleData] = []
         for article in data.get("articles", []):
             articles.append({
                 "title": article.get("title", ""),
@@ -256,7 +258,7 @@ def _search_newsapi(query: str, days_back: int = 7) -> List[Dict[str, str]]:
         return []
 
 
-def _search_finnhub_news(query: str, days_back: int = 7, company_name: str = None) -> List[Dict[str, str]]:
+def _search_finnhub_news(query: str, days_back: int = 7, company_name: str | None = None) -> list['ArticleData']:
     """
     Search for financial news using Finnhub.
 
@@ -268,21 +270,21 @@ def _search_finnhub_news(query: str, days_back: int = 7, company_name: str = Non
     Returns:
         List of news articles with metadata
     """
-    api_key = os.getenv("FINNHUB_API_KEY")
+    api_key: str | None = os.getenv("FINNHUB_API_KEY")
     if not api_key:
         logger.warning("FINNHUB_API_KEY not set, skipping Finnhub")
         return []
 
     # Extract ticker from company_name if provided, otherwise from query
-    ticker = _extract_ticker(company_name if company_name else query)
+    ticker: str = _extract_ticker(company_name if company_name else query)
 
     # Calculate date range
-    to_date = datetime.now()
-    from_date = to_date - timedelta(days=min(days_back, 30))
+    to_date: datetime = datetime.now()
+    from_date: datetime = to_date - timedelta(days=min(days_back, 30))
 
     # Finnhub company news endpoint
-    url = "https://finnhub.io/api/v1/company-news"
-    params = {
+    url: str = "https://finnhub.io/api/v1/company-news"
+    params: dict[str, Any] = {
         "symbol": ticker,
         "from": from_date.strftime("%Y-%m-%d"),
         "to": to_date.strftime("%Y-%m-%d"),
@@ -290,16 +292,16 @@ def _search_finnhub_news(query: str, days_back: int = 7, company_name: str = Non
     }
 
     try:
-        response = requests.get(url, params=params, timeout=10)
+        response: requests.Response = requests.get(url, params=params, timeout=10)
         response.raise_for_status()
-        data = response.json()
+        data: list[dict[str, Any]] = response.json()
 
         # Parse and normalize articles
-        articles = []
+        articles: list[ArticleData] = []
         for article in data:
             # Convert Unix timestamp to ISO 8601
-            timestamp = article.get("datetime", 0)
-            published_at = datetime.fromtimestamp(timestamp).isoformat() if timestamp else ""
+            timestamp: int | float = article.get("datetime", 0)
+            published_at: str = datetime.fromtimestamp(timestamp).isoformat() if timestamp else ""
 
             articles.append({
                 "title": article.get("headline", ""),
@@ -318,7 +320,7 @@ def _search_finnhub_news(query: str, days_back: int = 7, company_name: str = Non
         return []
 
 
-def _search_newsapi_timed(query: str, days_back: int, tracker: Optional['TraceabilityTracker']) -> List[Dict[str, str]]:
+def _search_newsapi_timed(query: str, days_back: int, tracker: 'TraceabilityTracker | None') -> list['ArticleData']:
     """NewsAPI search with timing."""
     if tracker:
         with tracker.time_operation("NewsAPI Request", "api_call", {"query": query, "days_back": days_back}):
@@ -330,12 +332,12 @@ def _search_newsapi_timed(query: str, days_back: int, tracker: Optional['Traceab
 def _search_finnhub_news_timed(
     query: str,
     days_back: int,
-    company_name: Optional[str],
-    tracker: Optional['TraceabilityTracker']
-) -> List[Dict[str, str]]:
+    company_name: str | None,
+    tracker: 'TraceabilityTracker | None'
+) -> list['ArticleData']:
     """Finnhub search with timing."""
     if tracker:
-        metadata = {"query": query, "days_back": days_back, "company_name": company_name}
+        metadata: dict[str, Any] = {"query": query, "days_back": days_back, "company_name": company_name}
         with tracker.time_operation("Finnhub Request", "api_call", metadata):
             return _search_finnhub_news(query, days_back, company_name)
     else:
@@ -345,9 +347,9 @@ def _search_finnhub_news_timed(
 def search_financial_news(
     query: str,
     days_back: int = 7,
-    company_name: str = None,
-    tracker: Optional['TraceabilityTracker'] = None
-) -> List[Dict[str, str]]:
+    company_name: str | None = None,
+    tracker: 'TraceabilityTracker | None' = None
+) -> list['ArticleData']:
     """
     Search for financial news using both NewsAPI and Finnhub.
 
@@ -365,41 +367,41 @@ def search_financial_news(
         Each article contains: title, description, source, url,
         published_at, content, api_source
     """
-    all_articles = []
+    all_articles: list[ArticleData] = []
 
     # Query both APIs in parallel with timing
     with ThreadPoolExecutor(max_workers=2) as executor:
-        futures = {
+        futures: dict[Any, str] = {
             executor.submit(_search_newsapi_timed, query, days_back, tracker): "newsapi",
             executor.submit(_search_finnhub_news_timed, query, days_back, company_name, tracker): "finnhub"
         }
 
         for future in as_completed(futures):
-            source = futures[future]
+            source: str = futures[future]
             try:
-                articles = future.result()
+                articles: list[ArticleData] = future.result()
                 all_articles.extend(articles)
                 logger.info(f"Fetched {len(articles)} articles from {source}")
             except Exception as e:
                 logger.error(f"Error fetching from {source}: {e}")
 
     # Deduplicate by URL
-    seen_urls = set()
-    unique_articles = []
+    seen_urls: set[str] = set()
+    unique_articles: list[ArticleData] = []
     for article in all_articles:
-        url = article.get("url", "")
+        url: str = article.get("url", "")
         if url and url not in seen_urls:
             seen_urls.add(url)
             unique_articles.append(article)
 
     # Sort by published date (most recent first)
-    def parse_date(article):
+    def parse_date(article: ArticleData) -> datetime:
         try:
-            date_str = article.get("published_at", "")
+            date_str: str = article.get("published_at", "")
             if date_str:
                 # Handle both ISO format and other formats
                 # Remove timezone info to avoid comparison issues
-                dt = datetime.fromisoformat(date_str.replace("Z", "+00:00"))
+                dt: datetime = datetime.fromisoformat(date_str.replace("Z", "+00:00"))
                 # Return as naive datetime for consistent comparison
                 return dt.replace(tzinfo=None)
         except (ValueError, TypeError) as e:
@@ -412,7 +414,7 @@ def search_financial_news(
     return unique_articles[:20]
 
 
-def execute_tool(tool_name: str, arguments: dict, tracker: Optional['TraceabilityTracker'] = None) -> List[Dict[str, str]]:
+def execute_tool(tool_name: str, arguments: dict[str, Any], tracker: 'TraceabilityTracker | None' = None) -> list['ArticleData']:
     """
     Execute the news search tool.
 
@@ -428,9 +430,9 @@ def execute_tool(tool_name: str, arguments: dict, tracker: Optional['Traceabilit
         ValueError: If tool_name is unknown
     """
     if tool_name == "search_financial_news":
-        query = arguments.get("query", "")
-        days_back = arguments.get("days_back", 7)
-        company_name = arguments.get("company_name")
+        query: str = arguments.get("query", "")
+        days_back: int = arguments.get("days_back", 7)
+        company_name: str | None = arguments.get("company_name")
         return search_financial_news(query, days_back, company_name, tracker)
     else:
         raise ValueError(f"Unknown tool: {tool_name}")
