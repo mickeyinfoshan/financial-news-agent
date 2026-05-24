@@ -120,3 +120,38 @@ class MessageDict(TypedDict, total=False):
     tool_calls: Any
     tool_call_id: str
     name: str
+    # Extended fields for API responses
+    sources: list[SourceData]
+    evaluation: EvaluationResult
+    reasoning_steps: list[str]
+    trace: TraceData
+    retry_history: list[RetryAttempt]
+
+
+# API Module Types
+
+class SessionData(TypedDict):
+    """Internal session storage structure for the API."""
+    session_id: str
+    title: str
+    messages: list[MessageDict]
+    result: AgentResult | None
+    created_at: str
+    last_activity: str
+    metadata: dict[str, Any]
+
+
+class SessionMetadataDict(TypedDict):
+    """Session metadata for list responses."""
+    session_id: str
+    title: str
+    message_count: int
+    created_at: str
+    last_activity: str
+
+
+class EventData(TypedDict):
+    """SSE event structure for streaming responses."""
+    type: str
+    content: str
+    done: bool
