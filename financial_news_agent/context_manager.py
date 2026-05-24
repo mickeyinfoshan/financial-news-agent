@@ -142,7 +142,7 @@ Format as a narrative paragraph, not bullet points."""
             max_tokens=500
         )
 
-        summary: str = response.choices[0].message.content.strip()
+        summary: str = response.choices[0].message.content.strip() if response.choices[0].message.content else ""
         logger.info(f"Summarization complete: {len(summary)} characters")
         return summary
 
@@ -221,14 +221,12 @@ def manage_context(
             recent_msgs: list[MessageDict] = messages[-(recent_count):] if recent_count > 0 else []
 
             # Create new messages list: system + summary + recent messages
-            new_messages: list[MessageDict] = [
-                system_msg,
-                {
-                    "role": "system",
-                    "content": f"[Previous conversation summary]: {summary}",
-                    "name": "context_summary"
-                }
-            ] + recent_msgs
+            summary_msg: MessageDict = {
+                "role": "system",
+                "content": f"[Previous conversation summary]: {summary}",
+                "name": "context_summary"
+            }
+            new_messages: list[MessageDict] = [system_msg, summary_msg] + recent_msgs
 
             logger.info(
                 f"Summarization applied: {message_count} messages -> "

@@ -95,7 +95,7 @@ def _search_symbol_finnhub(company_name: str, max_retries: int = 2) -> str | Non
                     symbol = results[0].get("symbol")
                     if symbol:
                         logger.info(f"Found ticker via API (non-stock): {company_name} -> {symbol}")
-                        return symbol
+                        return str(symbol)
 
             return None
 

@@ -98,7 +98,7 @@ Respond with ONLY a JSON object in this exact format:
         )
 
         # Parse evaluation
-        eval_text: str = response.choices[0].message.content.strip()
+        eval_text: str = response.choices[0].message.content.strip() if response.choices[0].message.content else "{}"
 
         # Extract JSON if wrapped in markdown
         if "```json" in eval_text:

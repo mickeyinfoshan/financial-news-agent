@@ -106,7 +106,7 @@ class TraceabilityTracker:
         name: str,
         category: str,
         metadata: dict[str, Any] | None = None
-    ):
+    ) -> Any:
         """Context manager for timing an operation.
 
         Args:
@@ -201,7 +201,7 @@ class TraceabilityTracker:
         return {
             "total_duration_ms": round(self._timing_root.duration * 1000, 2) if self._timing_root.duration else 0,
             "breakdown": breakdown,
-            "hierarchy": self._timing_root.to_dict() if self._timing_root else None
+            "hierarchy": self._timing_root.to_dict() if self._timing_root else None  # type: ignore[typeddict-item]
         }
 
     def get_trace(self) -> TraceData:
