@@ -214,10 +214,10 @@ def run_agent(user_query: str, messages: list[MessageDict]) -> tuple[AgentResult
                 tool_choice_param = "none" if is_final_iteration else "auto"
 
                 with tracker.time_operation("LLM Reasoning Call", "llm_call", llm_metadata) as timing_node:
-                    response = client.chat.completions.create(
+                    response = client.chat.completions.create(  # type: ignore[call-overload]
                         model=os.getenv("OPENAI_MODEL", "gpt-4.5"),
-                        messages=messages,  # type: ignore[arg-type]
-                        tools=tools,  # type: ignore[arg-type]
+                        messages=messages,
+                        tools=tools,
                         tool_choice=tool_choice_param,
                         temperature=0.7,
                         max_tokens=2000
@@ -244,7 +244,7 @@ def run_agent(user_query: str, messages: list[MessageDict]) -> tuple[AgentResult
                 messages.append({
                     "role": "assistant",
                     "content": assistant_message.content,
-                    "tool_calls": assistant_message.tool_calls  # type: ignore[typeddict-item]
+                    "tool_calls": assistant_message.tool_calls
                 })
 
                 # Track reasoning if there's text content AND tool calls
@@ -267,16 +267,16 @@ def run_agent(user_query: str, messages: list[MessageDict]) -> tuple[AgentResult
 
                         with tracker.time_operation(f"Tool: {tool_name}", "tool_call", tool_metadata):
                             # Execute the tool
-                            result: list[ArticleData] = execute_tool(tool_name, tool_args, tracker)
+                            tool_result: list[ArticleData] = execute_tool(tool_name, tool_args, tracker)
 
                         # Track the tool call
-                        tracker.add_tool_call(tool_name, tool_args, result)
+                        tracker.add_tool_call(tool_name, tool_args, tool_result)
 
                         # Calculate starting ID BEFORE adding sources (for continuous numbering)
                         start_id: int = len(tracker.sources) + 1
 
                         # Add sources (use full result for traceability)
-                        for article in result:
+                        for article in tool_result:
                             tracker.add_source({
                                 "title": article.get("title", ""),
                                 "date": article.get("published_at", ""),
@@ -288,7 +288,7 @@ def run_agent(user_query: str, messages: list[MessageDict]) -> tuple[AgentResult
 
                         # Compress result for LLM context with correct offset
                         aggressive: bool = total_tokens > config["warning_threshold"]
-                        compressed_articles: list[dict[str, Any]] = compress_tool_result(result, aggressive=aggressive, start_id=start_id)
+                        compressed_articles: list[dict[str, Any]] = compress_tool_result(tool_result, aggressive=aggressive, start_id=start_id)
 
                         # Add compressed tool result to conversation
                         messages.append({
@@ -379,11 +379,11 @@ def run_agent_with_retry(user_query: str, messages: list[MessageDict]) -> tuple[
                     if not config.should_retry(evaluation, attempt):
                         # Success or max attempts reached
                         if config.show_attempts and retry_history:
-                            result["retry_history"] = retry_history  # type: ignore[typeddict-unknown-key]
+                            result["retry_history"] = retry_history  # type: ignore[typeddict-item]
 
                         # Merge timing from top-level tracker
                         if "trace" in result and "timing" not in result["trace"]:
-                            result["trace"]["timing"] = tracker.get_timing_summary()  # type: ignore[typeddict-item]
+                            result["trace"]["timing"] = tracker.get_timing_summary()
 
                         return result, messages
 
@@ -396,11 +396,11 @@ def run_agent_with_retry(user_query: str, messages: list[MessageDict]) -> tuple[
 
                     if strategy == "none":
                         if config.show_attempts and retry_history:
-                            result["retry_history"] = retry_history  # type: ignore[typeddict-unknown-key]
+                            result["retry_history"] = retry_history  # type: ignore[typeddict-item]
 
                         # Merge timing from top-level tracker
                         if "trace" in result and "timing" not in result["trace"]:
-                            result["trace"]["timing"] = tracker.get_timing_summary()  # type: ignore[typeddict-item]
+                            result["trace"]["timing"] = tracker.get_timing_summary()
 
                         return result, messages
 
@@ -429,22 +429,22 @@ def run_agent_with_retry(user_query: str, messages: list[MessageDict]) -> tuple[
                     else:
                         # Retry failed, return previous result
                         if config.show_attempts and retry_history and previous_result:
-                            previous_result["retry_history"] = retry_history  # type: ignore[typeddict-unknown-key]
+                            previous_result["retry_history"] = retry_history  # type: ignore[typeddict-item]
 
                         # Merge timing from top-level tracker
                         if previous_result and "trace" in previous_result and "timing" not in previous_result["trace"]:
-                            previous_result["trace"]["timing"] = tracker.get_timing_summary()  # type: ignore[typeddict-item]
+                            previous_result["trace"]["timing"] = tracker.get_timing_summary()
 
                         return previous_result, previous_messages  # type: ignore[return-value]
 
         # Max attempts exhausted
         logger.warning(f"Maximum retry attempts reached ({config.max_attempts})")
         if config.show_attempts and retry_history:
-            result["retry_history"] = retry_history  # type: ignore[typeddict-unknown-key]
+            result["retry_history"] = retry_history  # type: ignore[typeddict-item]
 
         # Merge timing from top-level tracker
         if "trace" in result and "timing" not in result["trace"]:
-            result["trace"]["timing"] = tracker.get_timing_summary()  # type: ignore[typeddict-item]
+            result["trace"]["timing"] = tracker.get_timing_summary()
 
         return result, messages
 
@@ -512,7 +512,7 @@ async def run_agent_stream(
             tool_choice_param = "none" if is_final_iteration else "auto"
 
             # Always use stream=True
-            stream = await client.chat.completions.create(
+            stream = await client.chat.completions.create(  # type: ignore[call-overload]
                 model=os.getenv("OPENAI_MODEL", "gpt-4.5"),
                 messages=messages,
                 tools=tools,
@@ -523,7 +523,7 @@ async def run_agent_stream(
             )
 
             # Accumulate response
-            accumulated = {
+            accumulated: dict[str, Any] = {
                 "content": "",
                 "tool_calls": [],
                 "role": "assistant"
@@ -576,14 +576,14 @@ async def run_agent_stream(
                     }
 
                     # Execute tool
-                    result = execute_tool(tool_name, tool_args, tracker)
-                    tracker.add_tool_call(tool_name, tool_args, result)
+                    tool_result = execute_tool(tool_name, tool_args, tracker)
+                    tracker.add_tool_call(tool_name, tool_args, tool_result)
 
                     # Calculate starting ID BEFORE adding sources (for continuous numbering)
                     start_id = len(tracker.sources) + 1
 
                     # Track sources
-                    for article in result:
+                    for article in tool_result:
                         tracker.add_source({
                             "title": article.get("title", ""),
                             "date": article.get("published_at", ""),
@@ -597,15 +597,15 @@ async def run_agent_stream(
                         "event": "tool_call_complete",
                         "data": {
                             "tool_name": tool_name,
-                            "result_summary": f"Retrieved {len(result)} articles",
-                            "article_count": len(result),
+                            "result_summary": f"Retrieved {len(tool_result)} articles",
+                            "article_count": len(tool_result),
                             "iteration": iteration + 1
                         }
                     }
 
                     # Compress and add to messages with correct offset
                     aggressive = total_tokens > config["warning_threshold"]
-                    compressed_articles = compress_tool_result(result, aggressive=aggressive, start_id=start_id)
+                    compressed_articles = compress_tool_result(tool_result, aggressive=aggressive, start_id=start_id)
                     messages.append({
                         "role": "tool",
                         "tool_call_id": tool_call["id"],
@@ -640,7 +640,7 @@ async def run_agent_stream(
     rewritten_query = rewrite_query_with_context(user_query, messages, sync_client)
 
     # Self-evaluate
-    evaluation = evaluate_response(final_answer, tracker, user_query=rewritten_query)
+    evaluation = evaluate_response(str(final_answer), tracker, user_query=rewritten_query)
     yield {"event": "evaluation", "data": evaluation}
 
     # Emit timing summary
@@ -649,8 +649,8 @@ async def run_agent_stream(
         yield {"event": "timing", "data": timing_summary}
 
     # Build final result
-    result = {
-        "answer": final_answer,
+    result: AgentResult = {
+        "answer": str(final_answer),
         "sources": tracker.sources,
         "tool_calls": tracker.tool_calls,
         "reasoning_steps": tracker.reasoning_steps,
@@ -675,7 +675,7 @@ async def run_agent_with_retry_stream(
     """Streaming version with retry support."""
     config = RetryConfig()
     attempt = 0
-    retry_history = []
+    retry_history: list[dict[str, Any]] = []
 
     while attempt < config.max_attempts:
         attempt += 1
@@ -694,6 +694,9 @@ async def run_agent_with_retry_stream(
             yield event
 
         # Check if retry needed
+        if result is None:
+            break
+
         evaluation = result["evaluation"]
         should_retry = (
             evaluation["overall"] < config.threshold_overall or
@@ -715,7 +718,7 @@ async def run_agent_with_retry_stream(
             return
 
         # Determine retry strategy
-        strategy = decide_retry_strategy(evaluation, result)
+        strategy = decide_retry_strategy(evaluation, result["sources"], config)
         retry_info = {
             "attempt": attempt,
             "previous_score": evaluation["overall"],
