@@ -22,7 +22,7 @@ This is an AI agent system for financial news analysis. The agent searches recen
 - **Package Manager**: `uv` (NEVER use `pip`)
 - **Agent Framework**: Custom agent loop with OpenAI function calling
 - **LLM**: OpenAI API (GPT-4.5 or compatible models)
-- **News Sources**: NewsAPI and Finnhub for financial news
+- **News Sources**: NewsAPI, Finnhub, and Marketaux for financial news (extensible provider system)
 
 ## Development Setup
 
@@ -46,11 +46,17 @@ uv run pytest
 ## Project Structure
 
 ```
-financial_news_agent/     # Main source code (flat structure)
+financial_news_agent/     # Main source code
 ├── __init__.py
 ├── __main__.py           # Entry point
 ├── agent.py              # Main agent loop with LLM and tool calling
-├── news_tool.py          # News search (NewsAPI + Finnhub)
+├── news_tool.py          # News search orchestration
+├── news_sources/         # News provider implementations
+│   ├── __init__.py       # Exports all providers
+│   ├── base.py           # NewsSourceProvider Protocol
+│   ├── newsapi.py        # NewsAPIProvider implementation
+│   ├── finnhub.py        # FinnhubProvider implementation
+│   └── marketaux.py      # MarketauxProvider implementation
 ├── traceability.py       # Traceability tracking
 ├── evaluator.py          # Self-evaluation logic
 ├── retry_manager.py      # Retry/fix mechanism for low-quality responses
@@ -80,11 +86,14 @@ The system uses a simple agentic loop with these components:
    - Tracks all tool calls and reasoning steps
    - Wrapped by `run_agent_with_retry()` for automatic quality improvement
 
-2. **News Search** (`news_tool.py`): Multi-source news retrieval
-   - NewsAPI for general financial news
-   - Finnhub for company-specific news with ticker lookup
-   - Parallel API calls with deduplication
+2. **News Search** (`news_tool.py`): Multi-source news retrieval with extensible provider system
+   - **Provider Abstraction**: Protocol-based design for easy addition of new sources
+   - **NewsAPI**: General financial news
+   - **Finnhub**: Company-specific news with ticker lookup
+   - **Marketaux**: Additional financial news source
+   - Parallel API calls with deduplication across all sources
    - Dynamic ticker resolution via Finnhub Symbol Search API
+   - Providers automatically activated based on API key availability
 
 3. **Traceability** (`traceability.py`): Audit trail tracking
    - Records all sources, tool calls, and reasoning steps
@@ -116,8 +125,9 @@ The system uses a simple agentic loop with these components:
 1. **Transparency First**: Every claim must link back to specific sources
 2. **Audit Trail**: Log all decision points and data transformations
 3. **Quality Gates**: Self-evaluation triggers automatic retry/fix for low-quality responses
-4. **Multi-Source Coverage**: Combine NewsAPI and Finnhub for comprehensive news coverage
+4. **Multi-Source Coverage**: Combine multiple news sources (NewsAPI, Finnhub, Marketaux) for comprehensive coverage
 5. **Automatic Quality Improvement**: Retry mechanism ensures responses meet quality thresholds
+6. **Extensible Architecture**: Protocol-based provider system makes adding new news sources trivial
 
 ## Environment Variables
 
@@ -129,6 +139,7 @@ OPENAI_BASE_URL=https://api.openai.com/v1  # Optional, for custom endpoints
 OPENAI_MODEL=gpt-4.5  # Optional, defaults to gpt-4.5
 NEWS_API_KEY=your_newsapi_key
 FINNHUB_API_KEY=your_finnhub_api_key
+MARKETAUX_API_KEY=your_marketaux_api_key  # Optional, for Marketaux news source
 
 # Retry/Fix Mechanism (Optional)
 RETRY_ENABLE=true                    # Enable automatic retry for low-quality responses
@@ -154,3 +165,146 @@ The system automatically improves low-quality responses through intelligent retr
   - Higher token cost (~2.0x)
 - **Smart Selection**: Automatically chooses FIX or REDO based on evaluation scores
 - **Cost Control**: Configurable max attempts (default: 1 retry = 2 total attempts max)
+
+## Adding New News Sources
+
+The system uses a Protocol-based provider architecture that makes adding new news sources straightforward.
+
+### Step-by-Step Guide
+
+1. **Create a new provider file** in `financial_news_agent/news_sources/`:
+   ```python
+   # financial_news_agent/news_sources/my_provider.py
+   import os
+   import logging
+   from datetime import datetime, timedelta
+   import requests
+   
+   from ..types import ArticleData
+   from ..traceability import TraceabilityTracker
+   
+   logger = logging.getLogger(__name__)
+   
+   class MyProvider:
+       """My news provider implementation."""
+       
+       @property
+       def name(self) -> str:
+           return "myprovider"
+       
+       @property
+       def is_available(self) -> bool:
+           return os.getenv("MY_PROVIDER_API_KEY") is not None
+       
+       def search(
+           self,
+           query: str,
+           days_back: int = 7,
+           company_name: str | None = None,
+           tracker: TraceabilityTracker | None = None
+       ) -> list[ArticleData]:
+           """Search for news articles."""
+           if not self.is_available:
+               logger.warning("MY_PROVIDER_API_KEY not set")
+               return []
+           
+           # Implement your API call here
+           api_key = os.getenv("MY_PROVIDER_API_KEY")
+           # ... fetch and parse articles ...
+           
+           # Return list of ArticleData dictionaries
+           return [
+               {
+                   "title": "Article title",
+                   "description": "Article description",
+                   "source": "Source name",
+                   "url": "https://...",
+                   "published_at": "2024-01-01T00:00:00",
+                   "content": "Article content",
+                   "api_source": self.name  # Must match self.name
+               }
+           ]
+   ```
+
+2. **Export the provider** in `financial_news_agent/news_sources/__init__.py`:
+   ```python
+   from .base import NewsSourceProvider
+   from .newsapi import NewsAPIProvider
+   from .finnhub import FinnhubProvider
+   from .marketaux import MarketauxProvider
+   from .my_provider import MyProvider  # Add this line
+   
+   __all__ = [
+       "NewsSourceProvider",
+       "NewsAPIProvider",
+       "FinnhubProvider",
+       "MarketauxProvider",
+       "MyProvider",  # Add this line
+   ]
+   ```
+
+3. **Register the provider** in `financial_news_agent/news_tool.py`:
+   ```python
+   from .news_sources import (
+       NewsSourceProvider,
+       NewsAPIProvider,
+       FinnhubProvider,
+       MarketauxProvider,
+       MyProvider  # Add this import
+   )
+   
+   def get_active_providers() -> list[NewsSourceProvider]:
+       """Get list of active news providers based on available API keys."""
+       providers: list[NewsSourceProvider] = []
+       
+       newsapi = NewsAPIProvider()
+       if newsapi.is_available:
+           providers.append(newsapi)
+       
+       finnhub = FinnhubProvider()
+       if finnhub.is_available:
+           providers.append(finnhub)
+       
+       marketaux = MarketauxProvider()
+       if marketaux.is_available:
+           providers.append(marketaux)
+       
+       # Add your provider
+       myprovider = MyProvider()
+       if myprovider.is_available:
+           providers.append(myprovider)
+       
+       return providers
+   ```
+
+4. **Add API key** to `.env`:
+   ```bash
+   MY_PROVIDER_API_KEY=your_api_key_here
+   ```
+
+5. **Add to `.env.example`** for documentation:
+   ```bash
+   MY_PROVIDER_API_KEY=your-api-key-here
+   ```
+
+### Protocol Requirements
+
+Your provider class must implement:
+- `name` property: Returns provider name (string, used in `api_source` field)
+- `is_available` property: Returns `True` if API key is configured
+- `search()` method: Returns `list[ArticleData]` with these required fields:
+  - `title`: Article title (string)
+  - `description`: Article description/summary (string)
+  - `source`: News source name (string)
+  - `url`: Article URL (string)
+  - `published_at`: Publication date in ISO 8601 format (string)
+  - `content`: Article content/snippet (string)
+  - `api_source`: Must match `self.name` (string)
+
+### Benefits of This Architecture
+
+- **Automatic Integration**: New providers are automatically included in parallel searches
+- **Type Safety**: Protocol ensures compile-time type checking with mypy
+- **Dynamic Activation**: Providers activate automatically when API keys are present
+- **No Core Changes**: Adding providers doesn't require modifying search orchestration logic
+- **Isolated Testing**: Each provider can be tested independently

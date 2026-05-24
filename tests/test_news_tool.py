@@ -5,13 +5,13 @@ import requests
 import pytest
 
 from financial_news_agent.news_tool import (
-    _search_newsapi,
-    _search_finnhub_news,
     search_financial_news,
-    _search_symbol_finnhub,
     get_tool_schema,
     execute_tool
 )
+from financial_news_agent.news_sources.finnhub import _search_symbol_finnhub
+from financial_news_agent.news_sources.newsapi import _search_newsapi
+from financial_news_agent.news_sources.finnhub import _search_finnhub_news
 
 
 class TestSearchSymbolFinnhub:
@@ -157,7 +157,7 @@ class TestSearchFinnhubNews:
         mock_get.return_value = mock_response
 
         # Mock _extract_ticker to avoid API call
-        mocker.patch('financial_news_agent.news_tool._extract_ticker', return_value="NVDA")
+        mocker.patch('financial_news_agent.news_sources.finnhub._extract_ticker', return_value="NVDA")
 
         result = _search_finnhub_news("nvidia", days_back=7)
 
@@ -171,7 +171,7 @@ class TestSearchFinnhubNews:
         mock_get = mocker.patch('requests.get')
         mock_get.side_effect = requests.exceptions.RequestException("Network error")
 
-        mocker.patch('financial_news_agent.news_tool._extract_ticker', return_value="NVDA")
+        mocker.patch('financial_news_agent.news_sources.finnhub._extract_ticker', return_value="NVDA")
 
         result = _search_finnhub_news("nvidia")
         assert result == []
@@ -183,9 +183,9 @@ class TestSearchFinancialNews:
     def test_parallel_search_both_sources(self, mocker, mock_env_vars, sample_newsapi_response, sample_finnhub_news_response):
         """Test parallel querying of both APIs."""
         # Mock both API calls
-        mocker.patch('financial_news_agent.news_tool._extract_ticker', return_value="NVDA")
+        mocker.patch('financial_news_agent.news_sources.finnhub._extract_ticker', return_value="NVDA")
 
-        mock_newsapi = mocker.patch('financial_news_agent.news_tool._search_newsapi')
+        mock_newsapi = mocker.patch('financial_news_agent.news_sources.newsapi._search_newsapi')
         mock_newsapi.return_value = [
             {
                 "title": "News 1",
@@ -195,7 +195,7 @@ class TestSearchFinancialNews:
             }
         ]
 
-        mock_finnhub = mocker.patch('financial_news_agent.news_tool._search_finnhub_news')
+        mock_finnhub = mocker.patch('financial_news_agent.news_sources.finnhub._search_finnhub_news')
         mock_finnhub.return_value = [
             {
                 "title": "News 2",
@@ -213,14 +213,14 @@ class TestSearchFinancialNews:
 
     def test_deduplication_by_url(self, mocker, mock_env_vars):
         """Test that duplicate URLs are removed."""
-        mocker.patch('financial_news_agent.news_tool._extract_ticker', return_value="NVDA")
+        mocker.patch('financial_news_agent.news_sources.finnhub._extract_ticker', return_value="NVDA")
 
-        mock_newsapi = mocker.patch('financial_news_agent.news_tool._search_newsapi')
+        mock_newsapi = mocker.patch('financial_news_agent.news_sources.newsapi._search_newsapi')
         mock_newsapi.return_value = [
             {"title": "News 1", "url": "https://example.com/1", "published_at": "2026-05-22T10:00:00Z"}
         ]
 
-        mock_finnhub = mocker.patch('financial_news_agent.news_tool._search_finnhub_news')
+        mock_finnhub = mocker.patch('financial_news_agent.news_sources.finnhub._search_finnhub_news')
         mock_finnhub.return_value = [
             {"title": "News 1 Duplicate", "url": "https://example.com/1", "published_at": "2026-05-22T10:00:00Z"}
         ]
@@ -232,14 +232,14 @@ class TestSearchFinancialNews:
 
     def test_sorting_by_date(self, mocker, mock_env_vars):
         """Test that results are sorted by published date (most recent first)."""
-        mocker.patch('financial_news_agent.news_tool._extract_ticker', return_value="NVDA")
+        mocker.patch('financial_news_agent.news_sources.finnhub._extract_ticker', return_value="NVDA")
 
-        mock_newsapi = mocker.patch('financial_news_agent.news_tool._search_newsapi')
+        mock_newsapi = mocker.patch('financial_news_agent.news_sources.newsapi._search_newsapi')
         mock_newsapi.return_value = [
             {"title": "Older", "url": "https://example.com/1", "published_at": "2026-05-20T10:00:00Z"}
         ]
 
-        mock_finnhub = mocker.patch('financial_news_agent.news_tool._search_finnhub_news')
+        mock_finnhub = mocker.patch('financial_news_agent.news_sources.finnhub._search_finnhub_news')
         mock_finnhub.return_value = [
             {"title": "Newer", "url": "https://example.com/2", "published_at": "2026-05-22T10:00:00Z"}
         ]
