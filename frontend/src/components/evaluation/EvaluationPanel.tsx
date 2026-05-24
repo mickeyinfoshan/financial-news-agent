@@ -1,10 +1,9 @@
 import { motion } from 'framer-motion';
-import { AgentMessage } from '@/types/message';
+import { Message } from '@/types/message';
 import { getScoreColor } from '@/styles/tokens';
-import clsx from 'clsx';
 
 interface EvaluationPanelProps {
-  message: AgentMessage;
+  message: Message;
 }
 
 export default function EvaluationPanel({ message }: EvaluationPanelProps) {
@@ -26,8 +25,8 @@ export default function EvaluationPanel({ message }: EvaluationPanelProps) {
     { label: 'Reasonableness', value: evaluation.reasonableness ?? 0, key: 'reasonableness' },
   ];
 
-  // Backend returns 'overall', not 'overall_score'
-  const overallScore = (evaluation as any).overall ?? evaluation.overall_score ?? 0;
+  // Backend returns 'overall'
+  const overallScore = evaluation.overall ?? 0;
   const overallColor = getScoreColor(overallScore);
 
   return (

@@ -3,8 +3,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, ChevronDown, ChevronRight, Copy, Check } from 'lucide-react';
 import { useMessageStore } from '@/store/messageStore';
 import { useSessionStore } from '@/store/sessionStore';
-import { formatTimestamp } from '@/utils/formatting';
-import clsx from 'clsx';
 
 interface TerminalPanelProps {
   onClose: () => void;
@@ -103,7 +101,6 @@ export default function TerminalPanel({ onClose }: TerminalPanelProps) {
             {/* Timing Section */}
             {totalSeconds && (
               <TerminalSection
-                id="timing"
                 title="Execution Timing"
                 expanded={expandedSections.has('timing')}
                 onToggle={() => toggleSection('timing')}
@@ -128,7 +125,6 @@ export default function TerminalPanel({ onClose }: TerminalPanelProps) {
             {/* Tool Calls Section */}
             {toolCalls.length > 0 && (
               <TerminalSection
-                id="tools"
                 title={`Tool Calls (${toolCalls.length})`}
                 expanded={expandedSections.has('tools')}
                 onToggle={() => toggleSection('tools')}
@@ -159,7 +155,6 @@ export default function TerminalPanel({ onClose }: TerminalPanelProps) {
             {/* Reasoning Steps Section */}
             {reasoning.length > 0 && (
               <TerminalSection
-                id="reasoning"
                 title={`Reasoning Steps (${reasoning.length})`}
                 expanded={expandedSections.has('reasoning')}
                 onToggle={() => toggleSection('reasoning')}
@@ -442,13 +437,11 @@ export default function TerminalPanel({ onClose }: TerminalPanelProps) {
 
 // Helper component for collapsible sections
 function TerminalSection({
-  id,
   title,
   expanded,
   onToggle,
   children,
 }: {
-  id: string;
   title: string;
   expanded: boolean;
   onToggle: () => void;

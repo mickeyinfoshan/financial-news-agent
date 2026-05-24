@@ -14,7 +14,7 @@ interface MessageState {
   clearMessages: (sessionId: string) => void;
 }
 
-export const useMessageStore = create<MessageState>((set, get) => ({
+export const useMessageStore = create<MessageState>((set) => ({
   messagesBySession: {},
   streamingState: null,
 

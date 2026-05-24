@@ -4,11 +4,11 @@ import { ExternalLink, ChevronDown, ChevronUp } from 'lucide-react';
 import { useUIStore } from '@/store/uiStore';
 import { formatDate } from '@/utils/formatting';
 import { extractCitationNumbers } from '@/utils/citations';
-import { AgentMessage } from '@/types/message';
+import { Message } from '@/types/message';
 import clsx from 'clsx';
 
 interface SourcesPanelProps {
-  message: AgentMessage;
+  message: Message;
 }
 
 export default function SourcesPanel({ message }: SourcesPanelProps) {
@@ -22,7 +22,7 @@ export default function SourcesPanel({ message }: SourcesPanelProps) {
   const citedIndices = extractCitationNumbers(message.content);
 
   // Filter sources to only show cited ones
-  const sources = allSources.filter((_, index) => citedIndices.includes(index));
+  const sources = allSources.filter((_: any, index: number) => citedIndices.includes(index));
 
   // Auto-scroll to selected source
   useEffect(() => {
@@ -56,7 +56,7 @@ export default function SourcesPanel({ message }: SourcesPanelProps) {
 
   return (
     <div className="sources-panel">
-      {sources.map((source, displayIndex) => {
+      {sources.map((source: any, displayIndex: number) => {
         // Get the original citation number (1-indexed)
         const originalIndex = allSources.indexOf(source);
         const citationNumber = originalIndex + 1;

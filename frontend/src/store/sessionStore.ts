@@ -80,7 +80,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     }
   },
 
-  refreshSession: async (sessionId: string) => {
+  refreshSession: async () => {
     // Refresh session list to update message counts
     await get().fetchSessions();
   },
