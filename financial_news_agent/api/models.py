@@ -1,12 +1,14 @@
 """Pydantic models for API request/response validation."""
 
-from typing import Optional, Any
+from __future__ import annotations
+
+from typing import Any
 from pydantic import BaseModel, Field
 
 
 class CreateSessionRequest(BaseModel):
     """Request model for creating a new session."""
-    query: Optional[str] = Field(None, description="Optional initial query to ask immediately")
+    query: str | None = Field(None, description="Optional initial query to ask immediately")
 
 
 class CreateSessionResponse(BaseModel):
@@ -27,7 +29,7 @@ class CreateSessionWithResultResponse(BaseModel):
     tool_calls: list[dict[str, Any]]
     reasoning_steps: list[str]
     trace: dict[str, Any]
-    retry_history: Optional[list[dict[str, Any]]] = None
+    retry_history: list[dict[str, Any]] | None = None
 
 
 class QueryRequest(BaseModel):
@@ -43,7 +45,7 @@ class QueryResponse(BaseModel):
     tool_calls: list[dict[str, Any]]
     reasoning_steps: list[str]
     trace: dict[str, Any]
-    retry_history: Optional[list[dict[str, Any]]] = None
+    retry_history: list[dict[str, Any]] | None = None
 
 
 class SessionMetadata(BaseModel):
@@ -93,4 +95,4 @@ class HealthResponse(BaseModel):
 class ErrorResponse(BaseModel):
     """Standardized error response."""
     error: str
-    detail: Optional[str] = None
+    detail: str | None = None
