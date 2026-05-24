@@ -49,3 +49,20 @@ strict_equality = true
 [[tool.mypy.overrides]]
 module = ["openai.*", "requests.*"]
 ignore_missing_imports = true
+
+[tool.coverage.run]
+source = ["financial_news_agent"]
+omit = [
+    "*/tests/*",
+    "*/.dev_process/*",
+    "*/conftest.py",
+]
+branch = true
+
+[tool.coverage.report]
+precision = 2
+show_missing = true
+skip_covered = false
+
+[tool.coverage.xml]
+output = "coverage.xml"
