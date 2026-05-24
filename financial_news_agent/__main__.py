@@ -1,10 +1,15 @@
 """CLI entry point for the financial news agent."""
 
+from typing import TYPE_CHECKING
+
 from .agent import run_agent_with_retry, create_conversation
 from .utils import extract_citations
 
+if TYPE_CHECKING:
+    from .types import AgentResult, MessageDict, EvaluationResult, RetryAttempt
 
-def main():
+
+def main() -> None:
     """Main CLI interface with multi-turn conversation support."""
     print("=" * 60)
     print("Financial News Agent")
@@ -14,12 +19,12 @@ def main():
     print()
 
     # Initialize conversation
-    messages = create_conversation()
+    messages: list[MessageDict] = create_conversation()
 
     # Conversation loop
     try:
         while True:
-            query = input("\nYour question: ").strip()
+            query: str = input("\nYour question: ").strip()
 
             # Check for exit commands
             if query.lower() in ["quit", "exit", "q"]:
@@ -33,6 +38,7 @@ def main():
             print("\nAnalyzing... (this may take a moment)\n")
 
             # Run the agent with conversation history
+            result: AgentResult
             result, messages = run_agent_with_retry(query, messages)
 
             # Display results
@@ -43,7 +49,7 @@ def main():
             print()
 
             # Extract citations from answer
-            cited_indices = extract_citations(result["answer"])
+            cited_indices: list[int] = extract_citations(result["answer"])
 
             # Display only cited sources
             print("=" * 60)
@@ -73,7 +79,7 @@ def main():
             print("=" * 60)
             print("EVALUATION")
             print("=" * 60)
-            eval_data = result["evaluation"]
+            eval_data: EvaluationResult = result["evaluation"]
             print(f"Overall Score: {eval_data['overall']}/10.0")
             print(f"  - Accuracy: {eval_data.get('accuracy', 'N/A')}/10")
             print(f"  - Relevance: {eval_data.get('relevance', 'N/A')}/10")
@@ -87,14 +93,15 @@ def main():
                 print("=" * 60)
                 print("RETRY HISTORY")
                 print("=" * 60)
-                for attempt_data in result["retry_history"]:
+                retry_history: list[RetryAttempt] = result["retry_history"]
+                for attempt_data in retry_history:
                     print(f"\nAttempt {attempt_data['attempt']}:")
-                    eval_data = attempt_data['evaluation']
-                    print(f"  Overall: {eval_data['overall']}/10")
-                    print(f"  Accuracy: {eval_data.get('accuracy', 0)}/10")
-                    print(f"  Relevance: {eval_data.get('relevance', 0)}/10")
-                    print(f"  Coherence: {eval_data.get('coherence', 0)}/10")
-                    print(f"  Reasonableness: {eval_data.get('reasonableness', 0)}/10")
+                    attempt_eval: EvaluationResult = attempt_data['evaluation']
+                    print(f"  Overall: {attempt_eval['overall']}/10")
+                    print(f"  Accuracy: {attempt_eval.get('accuracy', 0)}/10")
+                    print(f"  Relevance: {attempt_eval.get('relevance', 0)}/10")
+                    print(f"  Coherence: {attempt_eval.get('coherence', 0)}/10")
+                    print(f"  Reasonableness: {attempt_eval.get('reasonableness', 0)}/10")
                     print(f"  Answer Preview: {attempt_data['answer'][:150]}...")
                 print()
 

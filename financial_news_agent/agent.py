@@ -3,13 +3,16 @@
 import os
 import json
 import logging
-from typing import AsyncGenerator
+from typing import Any, AsyncGenerator, TYPE_CHECKING
 from openai import OpenAI, AsyncOpenAI
 from .traceability import TraceabilityTracker
 from .news_tool import get_tool_schema, execute_tool
 from .evaluator import evaluate_response
 from .context_manager import manage_context, compress_tool_result, load_config
 from .retry_manager import RetryConfig, decide_retry_strategy, build_fix_prompt, build_redo_prompt
+
+if TYPE_CHECKING:
+    from .types import AgentResult, MessageDict, EvaluationResult, ContextConfig, ArticleData
 
 logger = logging.getLogger(__name__)
 
@@ -56,7 +59,7 @@ Be thorough - you can call the tool multiple times with different queries if nee
 Base your analysis strictly on the sources you find and cite them appropriately."""
 
 
-def create_conversation() -> list:
+def create_conversation() -> list['MessageDict']:
     """Create a new conversation with initialized system message.
 
     Returns:
@@ -65,7 +68,7 @@ def create_conversation() -> list:
     return [{"role": "system", "content": _SYSTEM_PROMPT}]
 
 
-def rewrite_query_with_context(user_query: str, messages: list, client: OpenAI) -> str:
+def rewrite_query_with_context(user_query: str, messages: list['MessageDict'], client: OpenAI) -> str:
     """
     Rewrite user query to be self-contained using conversation context.
 
@@ -87,9 +90,9 @@ def rewrite_query_with_context(user_query: str, messages: list, client: OpenAI) 
 
     # Edge case 2: Query already seems self-contained
     # Check for pronouns and implicit references
-    pronouns = ['their', 'its', 'it', 'they', 'them', 'this', 'that', 'these', 'those']
-    query_lower = user_query.lower()
-    has_pronouns = any(f' {pronoun} ' in f' {query_lower} ' or
+    pronouns: list[str] = ['their', 'its', 'it', 'they', 'them', 'this', 'that', 'these', 'those']
+    query_lower: str = user_query.lower()
+    has_pronouns: bool = any(f' {pronoun} ' in f' {query_lower} ' or
                       query_lower.startswith(f'{pronoun} ') or
                       query_lower.endswith(f' {pronoun}')
                       for pronoun in pronouns)
@@ -100,23 +103,23 @@ def rewrite_query_with_context(user_query: str, messages: list, client: OpenAI) 
 
     # Build context from recent conversation (last 3-5 exchanges)
     # Exclude system message, focus on user-assistant exchanges
-    context_messages = []
+    context_messages: list[str] = []
     for msg in messages[1:]:  # Skip system message
-        role = msg.get("role", "")
-        content = msg.get("content", "")
+        role: str = msg.get("role", "")
+        content: str | None = msg.get("content", "")
 
         if role == "user" and content:
             context_messages.append(f"User: {content}")
         elif role == "assistant" and content:
             # Truncate long assistant responses
-            content_preview = content[:300] if len(content) > 300 else content
+            content_preview: str = content[:300] if len(content) > 300 else content
             context_messages.append(f"Assistant: {content_preview}")
 
     # Limit to last 6 messages (3 exchanges) to avoid token bloat
-    recent_context = context_messages[-6:] if len(context_messages) > 6 else context_messages
-    context_text = "\n".join(recent_context)
+    recent_context: list[str] = context_messages[-6:] if len(context_messages) > 6 else context_messages
+    context_text: str = "\n".join(recent_context)
 
-    rewrite_prompt = f"""Given the conversation context below, rewrite the user's latest query to be self-contained and clear.
+    rewrite_prompt: str = f"""Given the conversation context below, rewrite the user's latest query to be self-contained and clear.
 
 CONVERSATION CONTEXT:
 {context_text}
@@ -147,7 +150,7 @@ REWRITTEN QUERY:"""
             max_tokens=150
         )
 
-        rewritten = response.choices[0].message.content.strip()
+        rewritten: str = response.choices[0].message.content.strip() if response.choices[0].message.content else user_query
 
         # Remove quotes if LLM wrapped the response
         if rewritten.startswith('"') and rewritten.endswith('"'):
@@ -164,7 +167,7 @@ REWRITTEN QUERY:"""
         return user_query
 
 
-def run_agent(user_query: str, messages: list) -> tuple[dict, list]:
+def run_agent(user_query: str, messages: list['MessageDict']) -> tuple['AgentResult', list['MessageDict']]:
     """
     Run the financial news agent.
 
@@ -175,22 +178,22 @@ def run_agent(user_query: str, messages: list) -> tuple[dict, list]:
     Returns:
         Tuple of (result dict, updated messages list)
     """
-    client = OpenAI(
+    client: OpenAI = OpenAI(
         api_key=os.getenv("OPENAI_API_KEY"),
         base_url=os.getenv("OPENAI_BASE_URL")
     )
-    tracker = TraceabilityTracker()
-    config = load_config()
+    tracker: TraceabilityTracker = TraceabilityTracker()
+    config: ContextConfig = load_config()
 
     # Append new user query to existing conversation
     messages.append({"role": "user", "content": user_query})
 
     # Tool definitions
-    tools = [get_tool_schema()]
+    tools: list[dict[str, Any]] = [get_tool_schema()]
 
     # Agent loop (max 10 iterations)
-    final_answer = None
-    total_tokens = 0  # Track cumulative token usage
+    final_answer: str | None = None
+    total_tokens: int = 0  # Track cumulative token usage
 
     for iteration in range(10):
         logger.debug(f"[Iteration {iteration + 1}]")
@@ -201,7 +204,7 @@ def run_agent(user_query: str, messages: list) -> tuple[dict, list]:
                 messages = manage_context(messages, total_tokens, client, config, tracker)
 
             try:
-                llm_metadata = {
+                llm_metadata: dict[str, Any] = {
                     "model": os.getenv("OPENAI_MODEL", "gpt-4.5"),
                     "iteration": iteration + 1,
                     "has_tools": True
@@ -210,8 +213,8 @@ def run_agent(user_query: str, messages: list) -> tuple[dict, list]:
                 with tracker.time_operation("LLM Reasoning Call", "llm_call", llm_metadata) as timing_node:
                     response = client.chat.completions.create(
                         model=os.getenv("OPENAI_MODEL", "gpt-4.5"),
-                        messages=messages,
-                        tools=tools,
+                        messages=messages,  # type: ignore[arg-type]
+                        tools=tools,  # type: ignore[arg-type]
                         tool_choice="auto",
                         temperature=0.7,
                         max_tokens=2000
@@ -228,7 +231,7 @@ def run_agent(user_query: str, messages: list) -> tuple[dict, list]:
                         logger.debug(f"Token usage: {total_tokens}")
 
                 assistant_message = response.choices[0].message
-                finish_reason = response.choices[0].finish_reason
+                finish_reason: str = response.choices[0].finish_reason
 
                 logger.debug(f"Finish reason: {finish_reason}")
                 logger.debug(f"Has tool calls: {bool(assistant_message.tool_calls)}")
@@ -238,7 +241,7 @@ def run_agent(user_query: str, messages: list) -> tuple[dict, list]:
                 messages.append({
                     "role": "assistant",
                     "content": assistant_message.content,
-                    "tool_calls": assistant_message.tool_calls
+                    "tool_calls": assistant_message.tool_calls  # type: ignore[typeddict-item]
                 })
 
                 # Track reasoning if there's text content AND tool calls
@@ -250,10 +253,10 @@ def run_agent(user_query: str, messages: list) -> tuple[dict, list]:
                 if assistant_message.tool_calls:
                     # Execute tool calls
                     for tool_call in assistant_message.tool_calls:
-                        tool_name = tool_call.function.name
-                        tool_args = json.loads(tool_call.function.arguments)
+                        tool_name: str = tool_call.function.name
+                        tool_args: dict[str, Any] = json.loads(tool_call.function.arguments)
 
-                        tool_metadata = {
+                        tool_metadata: dict[str, Any] = {
                             "tool": tool_name,
                             "args": tool_args,
                             "iteration": iteration + 1
@@ -261,13 +264,13 @@ def run_agent(user_query: str, messages: list) -> tuple[dict, list]:
 
                         with tracker.time_operation(f"Tool: {tool_name}", "tool_call", tool_metadata):
                             # Execute the tool
-                            result = execute_tool(tool_name, tool_args, tracker)
+                            result: list[ArticleData] = execute_tool(tool_name, tool_args, tracker)
 
                         # Track the tool call
                         tracker.add_tool_call(tool_name, tool_args, result)
 
                         # Calculate starting ID BEFORE adding sources (for continuous numbering)
-                        start_id = len(tracker.sources) + 1
+                        start_id: int = len(tracker.sources) + 1
 
                         # Add sources (use full result for traceability)
                         for article in result:
@@ -281,8 +284,8 @@ def run_agent(user_query: str, messages: list) -> tuple[dict, list]:
                             })
 
                         # Compress result for LLM context with correct offset
-                        aggressive = total_tokens > config["warning_threshold"]
-                        compressed_articles = compress_tool_result(result, aggressive=aggressive, start_id=start_id)
+                        aggressive: bool = total_tokens > config["warning_threshold"]
+                        compressed_articles: list[dict[str, Any]] = compress_tool_result(result, aggressive=aggressive, start_id=start_id)
 
                         # Add compressed tool result to conversation
                         messages.append({
@@ -305,25 +308,28 @@ def run_agent(user_query: str, messages: list) -> tuple[dict, list]:
         final_answer = "Agent reached maximum iterations without completing the analysis."
 
     # Rewrite query for evaluation (handles multi-turn context)
+    rewritten_query: str
     with tracker.time_operation("Query Rewriting", "llm_call", {"purpose": "context_resolution"}):
         rewritten_query = rewrite_query_with_context(user_query, messages, client)
 
     # Self-evaluate the response with rewritten query
+    evaluation: EvaluationResult
     with tracker.time_operation("Response Evaluation", "llm_call", {"purpose": "quality_assessment"}):
         evaluation = evaluate_response(final_answer, tracker, user_query=rewritten_query)
 
     # Return structured result and updated messages
-    return {
+    result: AgentResult = {
         "answer": final_answer,
         "sources": tracker.sources,
         "tool_calls": tracker.tool_calls,
         "reasoning_steps": tracker.reasoning_steps,
         "evaluation": evaluation,
         "trace": tracker.get_trace()
-    }, messages
+    }
+    return result, messages
 
 
-def run_agent_with_retry(user_query: str, messages: list) -> tuple[dict, list]:
+def run_agent_with_retry(user_query: str, messages: list['MessageDict']) -> tuple['AgentResult', list['MessageDict']]:
     """
     Run agent with retry/fix mechanism for low-quality responses.
 
@@ -337,25 +343,26 @@ def run_agent_with_retry(user_query: str, messages: list) -> tuple[dict, list]:
         Tuple of (result dict, updated messages list)
     """
     # Create tracker at the top level to capture all timing
-    tracker = TraceabilityTracker()
-    config = RetryConfig()
+    tracker: TraceabilityTracker = TraceabilityTracker()
+    config: RetryConfig = RetryConfig()
 
     # Track retry attempts
-    attempt = 0
-    retry_history = []  # Store attempts if show_attempts=true
-    previous_result = None
-    previous_messages = None
+    attempt: int = 0
+    retry_history: list[dict[str, Any]] = []  # Store attempts if show_attempts=true
+    previous_result: AgentResult | None = None
+    previous_messages: list[MessageDict] | None = None
 
     with tracker.time_operation("Agent Request", "request", {"query": user_query}):
         while attempt <= config.max_attempts:
-            attempt_metadata = {"attempt": attempt + 1, "max_attempts": config.max_attempts + 1}
+            attempt_metadata: dict[str, Any] = {"attempt": attempt + 1, "max_attempts": config.max_attempts + 1}
 
             with tracker.time_operation(f"Attempt {attempt + 1}", "attempt", attempt_metadata):
                 try:
                     # Run the agent
+                    result: AgentResult
                     result, messages = run_agent(user_query, messages)
 
-                    evaluation = result["evaluation"]
+                    evaluation: EvaluationResult = result["evaluation"]
 
                     # Store attempt if configured
                     if config.show_attempts and attempt > 0:
@@ -369,11 +376,11 @@ def run_agent_with_retry(user_query: str, messages: list) -> tuple[dict, list]:
                     if not config.should_retry(evaluation, attempt):
                         # Success or max attempts reached
                         if config.show_attempts and retry_history:
-                            result["retry_history"] = retry_history
+                            result["retry_history"] = retry_history  # type: ignore[typeddict-unknown-key]
 
                         # Merge timing from top-level tracker
                         if "trace" in result and "timing" not in result["trace"]:
-                            result["trace"]["timing"] = tracker.get_timing_summary()
+                            result["trace"]["timing"] = tracker.get_timing_summary()  # type: ignore[typeddict-item]
 
                         return result, messages
 
@@ -382,15 +389,15 @@ def run_agent_with_retry(user_query: str, messages: list) -> tuple[dict, list]:
                     previous_messages = messages.copy()
 
                     # Decide strategy
-                    strategy = decide_retry_strategy(evaluation, result["sources"], config)
+                    strategy: str = decide_retry_strategy(evaluation, result["sources"], config)
 
                     if strategy == "none":
                         if config.show_attempts and retry_history:
-                            result["retry_history"] = retry_history
+                            result["retry_history"] = retry_history  # type: ignore[typeddict-unknown-key]
 
                         # Merge timing from top-level tracker
                         if "trace" in result and "timing" not in result["trace"]:
-                            result["trace"]["timing"] = tracker.get_timing_summary()
+                            result["trace"]["timing"] = tracker.get_timing_summary()  # type: ignore[typeddict-item]
 
                         return result, messages
 
@@ -400,13 +407,13 @@ def run_agent_with_retry(user_query: str, messages: list) -> tuple[dict, list]:
                     # Execute retry strategy
                     if strategy == "fix":
                         # FIX: Continue conversation with improvement prompt
-                        fix_prompt = build_fix_prompt(evaluation, user_query)
+                        fix_prompt: str = build_fix_prompt(evaluation, user_query)
                         messages.append({"role": "user", "content": fix_prompt})
 
                     elif strategy == "redo":
                         # REDO: Reset to system message + new query
-                        system_msg = messages[0]
-                        redo_prompt = build_redo_prompt(evaluation, user_query)
+                        system_msg: MessageDict = messages[0]
+                        redo_prompt: str = build_redo_prompt(evaluation, user_query)
                         messages = [system_msg, {"role": "user", "content": redo_prompt}]
 
                     attempt += 1
@@ -418,31 +425,31 @@ def run_agent_with_retry(user_query: str, messages: list) -> tuple[dict, list]:
                         raise
                     else:
                         # Retry failed, return previous result
-                        if config.show_attempts and retry_history:
-                            previous_result["retry_history"] = retry_history
+                        if config.show_attempts and retry_history and previous_result:
+                            previous_result["retry_history"] = retry_history  # type: ignore[typeddict-unknown-key]
 
                         # Merge timing from top-level tracker
-                        if "trace" in previous_result and "timing" not in previous_result["trace"]:
-                            previous_result["trace"]["timing"] = tracker.get_timing_summary()
+                        if previous_result and "trace" in previous_result and "timing" not in previous_result["trace"]:
+                            previous_result["trace"]["timing"] = tracker.get_timing_summary()  # type: ignore[typeddict-item]
 
-                        return previous_result, previous_messages
+                        return previous_result, previous_messages  # type: ignore[return-value]
 
         # Max attempts exhausted
         logger.warning(f"Maximum retry attempts reached ({config.max_attempts})")
         if config.show_attempts and retry_history:
-            result["retry_history"] = retry_history
+            result["retry_history"] = retry_history  # type: ignore[typeddict-unknown-key]
 
         # Merge timing from top-level tracker
         if "trace" in result and "timing" not in result["trace"]:
-            result["trace"]["timing"] = tracker.get_timing_summary()
+            result["trace"]["timing"] = tracker.get_timing_summary()  # type: ignore[typeddict-item]
 
         return result, messages
 
 
-def _merge_tool_call_delta(accumulated: list, deltas: list):
+def _merge_tool_call_delta(accumulated: list[dict[str, Any]], deltas: list[Any]) -> None:
     """Merge incremental tool call deltas from streaming response."""
     for delta in deltas:
-        index = delta.index
+        index: int = delta.index
 
         # Ensure list is long enough
         while len(accumulated) <= index:
@@ -464,8 +471,8 @@ def _merge_tool_call_delta(accumulated: list, deltas: list):
 
 async def run_agent_stream(
     user_query: str,
-    messages: list
-) -> AsyncGenerator[dict, None]:
+    messages: list['MessageDict']
+) -> AsyncGenerator[dict[str, Any], None]:
     """
     Async generator that yields events during agent execution.
 
