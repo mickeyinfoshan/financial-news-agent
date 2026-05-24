@@ -33,7 +33,7 @@ def load_config() -> dict:
     }
 
 
-def compress_tool_result(articles: list, aggressive: bool = False) -> list:
+def compress_tool_result(articles: list, aggressive: bool = False, start_id: int = 1) -> list:
     """Compress tool result articles to save tokens.
 
     Tier 1 (always): Keep only essential fields (title, source, url, published_at)
@@ -42,6 +42,8 @@ def compress_tool_result(articles: list, aggressive: bool = False) -> list:
     Args:
         articles: List of article dictionaries from news search
         aggressive: If True, apply aggressive compression (limit articles)
+        start_id: Starting ID for numbering (default: 1). Use len(tracker.sources) + 1
+                  for continuous numbering across multiple tool calls.
 
     Returns:
         list: Compressed articles with reduced fields and source numbering
@@ -56,7 +58,7 @@ def compress_tool_result(articles: list, aggressive: bool = False) -> list:
 
     # Tier 1: Keep only essential fields and add source numbering
     compressed = []
-    for idx, article in enumerate(articles, 1):
+    for idx, article in enumerate(articles, start_id):
         compressed.append({
             "id": idx,
             "title": article.get("title", ""),

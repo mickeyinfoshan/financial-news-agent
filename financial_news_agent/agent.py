@@ -32,9 +32,21 @@ Examples:
 - Multiple companies: query="BYD sales China", company_name="BYD" (separate call)
 - Industry: query="EV industry trends", company_name=None
 
-**IMPORTANT - Source Citations:**
-When you receive news articles from the tool, they will be numbered (id: 1, 2, 3, etc.).
-You MUST cite these sources in your answer using the format [1], [2], [3] whenever you reference information from them.
+**CRITICAL - Source Citations Rules:**
+When you receive news articles from the tool, they will be numbered with unique IDs (id: 1, 2, 3, etc.).
+These IDs are CUMULATIVE across all tool calls - if you make multiple searches, the numbering continues.
+For example: first search returns articles 1-10, second search returns articles 11-18.
+
+YOU MUST:
+- ONLY cite sources that were returned by the search_financial_news tool
+- Use the exact IDs provided in the tool response: [1], [2], [3], etc.
+- Base ALL claims strictly on the retrieved articles
+
+YOU MUST NEVER:
+- Cite sources from your training data or general knowledge
+- Invent or hallucinate article titles, sources, or citations
+- Reference articles that were not returned by the tool
+- Create your own source list or numbering
 
 Example citation style:
 "Apple's stock rose 5% following strong earnings [1]. Analysts predict continued growth in the AI sector [2][3]."
@@ -254,6 +266,9 @@ def run_agent(user_query: str, messages: list) -> tuple[dict, list]:
                         # Track the tool call
                         tracker.add_tool_call(tool_name, tool_args, result)
 
+                        # Calculate starting ID BEFORE adding sources (for continuous numbering)
+                        start_id = len(tracker.sources) + 1
+
                         # Add sources (use full result for traceability)
                         for article in result:
                             tracker.add_source({
@@ -265,9 +280,9 @@ def run_agent(user_query: str, messages: list) -> tuple[dict, list]:
                                 "api_source": article.get("api_source", "unknown")
                             })
 
-                        # Compress result for LLM context
+                        # Compress result for LLM context with correct offset
                         aggressive = total_tokens > config["warning_threshold"]
-                        compressed_articles = compress_tool_result(result, aggressive=aggressive)
+                        compressed_articles = compress_tool_result(result, aggressive=aggressive, start_id=start_id)
 
                         # Add compressed tool result to conversation
                         messages.append({
@@ -549,6 +564,9 @@ async def run_agent_stream(
                     result = execute_tool(tool_name, tool_args, tracker)
                     tracker.add_tool_call(tool_name, tool_args, result)
 
+                    # Calculate starting ID BEFORE adding sources (for continuous numbering)
+                    start_id = len(tracker.sources) + 1
+
                     # Track sources
                     for article in result:
                         tracker.add_source({
@@ -570,9 +588,9 @@ async def run_agent_stream(
                         }
                     }
 
-                    # Compress and add to messages
+                    # Compress and add to messages with correct offset
                     aggressive = total_tokens > config["warning_threshold"]
-                    compressed_articles = compress_tool_result(result, aggressive=aggressive)
+                    compressed_articles = compress_tool_result(result, aggressive=aggressive, start_id=start_id)
                     messages.append({
                         "role": "tool",
                         "tool_call_id": tool_call["id"],

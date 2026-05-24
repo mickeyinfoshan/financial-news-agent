@@ -29,6 +29,11 @@ def evaluate_response(answer: str, tracker, user_query: str = None) -> dict:
     # Extract citations from answer to determine which sources to include
     cited_indices = extract_citations(answer)
 
+    # Validate citations against available sources
+    invalid_citations = [idx for idx in cited_indices if idx < 1 or idx > len(tracker.sources)]
+    if invalid_citations:
+        logger.warning(f"Invalid citations detected: {invalid_citations} (valid range: 1-{len(tracker.sources)})")
+
     # Build evaluation prompt with only cited sources
     if cited_indices:
         # Include only cited sources with their citation numbers
