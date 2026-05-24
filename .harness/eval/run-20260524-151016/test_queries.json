@@ -1,0 +1,38 @@
+[
+  {
+    "id": 1,
+    "category": "simple",
+    "query": "What's the latest news about Apple?",
+    "expected_characteristics": "Should find recent Apple news, cite sources, provide brief summary"
+  },
+  {
+    "id": 2,
+    "category": "simple",
+    "query": "What's happening in the semiconductor industry?",
+    "expected_characteristics": "Should cover multiple companies, identify trends, cite industry news"
+  },
+  {
+    "id": 3,
+    "category": "complex",
+    "query": "Compare Tesla and Rivian's recent developments and their competitive positioning",
+    "expected_characteristics": "Should find news about both companies, compare them, analyze competitive dynamics"
+  },
+  {
+    "id": 4,
+    "category": "complex",
+    "query": "What are the major trends in AI chip development? Which companies are leading?",
+    "expected_characteristics": "Should identify trends, name key players, provide analysis with sources"
+  },
+  {
+    "id": 5,
+    "category": "edge_case",
+    "query": "What's the news about NVDA?",
+    "expected_characteristics": "Should resolve ticker to Nvidia, find relevant news"
+  },
+  {
+    "id": 6,
+    "category": "edge_case",
+    "query": "Tell me about Meta's recent announcements",
+    "expected_characteristics": "Should correctly identify Meta Platforms (not metaphorical usage), find company news"
+  }
+]
