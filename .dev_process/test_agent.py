@@ -1,83 +1,50 @@
-"""Test script for the financial news agent."""
-
-import sys
-import os
-
-# Add parent directory to path
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+#!/usr/bin/env python3
+"""Quick test of the financial news agent."""
 
 from financial_news_agent.agent import run_agent
+import json
 
+def main():
+    print("Testing Financial News Agent\n")
+    print("=" * 60)
 
-def test_agent():
-    """Test the agent with sample queries."""
+    query = "How is Tesla performing recently?"
+    print(f"Query: {query}\n")
 
-    # Test queries
-    queries = [
-        "What's happening with NVIDIA stock?",
-        "Tell me about the semiconductor industry",
-        "How is Tesla performing recently?"
-    ]
+    result = run_agent(query)
 
-    print("=" * 70)
-    print("FINANCIAL NEWS AGENT - TEST SCRIPT")
-    print("=" * 70)
-    print()
+    print("\n" + "=" * 60)
+    print("ANSWER:")
+    print("=" * 60)
+    print(result["answer"])
 
-    # Initialize conversation with system message
-    system_message = {
-        "role": "system",
-        "content": """You are a financial news analyst AI agent. Your job is to:
-1. Search for recent financial news about the company or industry the user asks about
-2. Analyze the news to create a coherent storyline of what has been happening
-3. Provide future impact analysis based on the trends you observe
-4. **Cite your sources using numbered references [1], [2], [3] etc.**
+    print("\n" + "=" * 60)
+    print("EVALUATION (out of 10):")
+    print("=" * 60)
+    eval_result = result["evaluation"]
+    print(f"Accuracy:       {eval_result.get('accuracy', 0)}/10")
+    print(f"Relevance:      {eval_result.get('relevance', 0)}/10")
+    print(f"Coherence:      {eval_result.get('coherence', 0)}/10")
+    print(f"Reasonableness: {eval_result.get('reasonableness', 0)}/10")
+    print(f"Overall:        {eval_result.get('overall', 0):.1f}/10")
+    print(f"\nFeedback: {eval_result.get('feedback', 'N/A')}")
 
-When you receive news articles from the tool, they will be numbered (id: 1, 2, 3, etc.).
-You MUST cite these sources in your answer using the format [1], [2], [3] whenever you reference information from them.
+    print("\n" + "=" * 60)
+    print("TRACEABILITY:")
+    print("=" * 60)
+    print(f"Tool Calls: {len(result.get('tool_calls', []))}")
+    print(f"Sources: {len(result.get('sources', []))}")
+    print(f"Reasoning Steps: {len(result.get('reasoning_steps', []))}")
 
-Always use the search_financial_news tool to gather information before answering.
-Be thorough - you can call the tool multiple times with different queries if needed.
-Base your analysis strictly on the sources you find and cite them appropriately."""
-    }
+    if result.get('sources'):
+        print("\nSources Used:")
+        for i, source in enumerate(result['sources'][:3], 1):
+            print(f"  {i}. {source.get('title', 'N/A')}")
 
-    messages = [system_message]
-
-    for i, query in enumerate(queries, 1):
-        print(f"\n{'='*70}")
-        print(f"TEST {i}: {query}")
-        print('='*70)
-
-        try:
-            result, messages = run_agent(query, messages)
-
-            # Display summary
-            print(f"\n✓ Answer generated ({len(result['answer'])} chars)")
-            print(f"✓ Sources found: {len(result['sources'])}")
-            print(f"✓ Tool calls made: {len(result['tool_calls'])}")
-            print(f"✓ Evaluation score: {result['evaluation']['overall']}/10.0")
-
-            # Show first 200 chars of answer
-            print(f"\nAnswer preview:")
-            print(result['answer'][:200] + "..." if len(result['answer']) > 200 else result['answer'])
-
-            # Show sources
-            if result['sources']:
-                print(f"\nTop sources:")
-                for j, source in enumerate(result['sources'][:3], 1):
-                    print(f"  {j}. {source['title'][:60]}...")
-
-            print(f"\nEvaluation: {result['evaluation']['feedback']}")
-
-        except Exception as e:
-            print(f"\n✗ Error: {e}")
-            import traceback
-            traceback.print_exc()
-
-    print(f"\n{'='*70}")
-    print("TEST COMPLETE")
-    print('='*70)
-
+    if result.get('tool_calls'):
+        print("\nTool Calls Made:")
+        for i, call in enumerate(result['tool_calls'], 1):
+            print(f"  {i}. {call.get('tool_name', 'N/A')} - {call.get('arguments', {})}")
 
 if __name__ == "__main__":
-    test_agent()
+    main()
