@@ -240,6 +240,87 @@ def test_multi_turn_conversation(client, mock_agent):
     assert len(messages) >= 3  # System + user + assistant (at least)
 
 
+def test_messages_contain_embedded_data(client, mock_agent):
+    """Test that assistant messages contain embedded sources and evaluation."""
+    # Create session with query
+    create_response = client.post(
+        "/api/v1/session/create",
+        json={"query": "What's happening with Tesla?"}
+    )
+    assert create_response.status_code == 200
+    session_id = create_response.json()["session_id"]
+
+    # Get messages
+    response = client.get(f"/api/v1/session/{session_id}/messages")
+    assert response.status_code == 200
+    data = response.json()
+
+    # Find assistant message
+    assistant_msg = next(
+        (msg for msg in data["messages"] if msg["role"] == "assistant"),
+        None
+    )
+
+    assert assistant_msg is not None
+    assert "sources" in assistant_msg
+    assert len(assistant_msg["sources"]) == 2
+    assert "evaluation" in assistant_msg
+    assert "tool_calls" in assistant_msg
+    assert "reasoning_steps" in assistant_msg
+    assert "trace" in assistant_msg
+
+
+def test_multiple_queries_each_have_data(client, mock_agent):
+    """Test that each assistant message has its own embedded data."""
+    # Create session
+    create_response = client.post("/api/v1/session/create", json={})
+    session_id = create_response.json()["session_id"]
+
+    # First query
+    response1 = client.post(
+        f"/api/v1/session/{session_id}/query",
+        json={"query": "Tesla news"}
+    )
+    assert response1.status_code == 200
+
+    # Second query
+    response2 = client.post(
+        f"/api/v1/session/{session_id}/query",
+        json={"query": "Apple news"}
+    )
+    assert response2.status_code == 200
+
+    # Get messages
+    response = client.get(f"/api/v1/session/{session_id}/messages")
+    data = response.json()
+
+    # Find all assistant messages
+    assistant_msgs = [
+        msg for msg in data["messages"] if msg["role"] == "assistant"
+    ]
+
+    # Should have at least one assistant message with embedded data
+    assert len(assistant_msgs) >= 1
+    # Each should have embedded data
+    for msg in assistant_msgs:
+        assert "sources" in msg
+        assert "evaluation" in msg
+
+
+def test_backward_compatibility_no_query_results(client):
+    """Test that sessions without query_results still work."""
+    # Create session without query
+    create_response = client.post("/api/v1/session/create", json={})
+    session_id = create_response.json()["session_id"]
+
+    # Get session - should work even without embedded data
+    response = client.get(f"/api/v1/session/{session_id}")
+    assert response.status_code == 200
+    data = response.json()
+    assert "session_id" in data
+    assert "messages" not in data  # Metadata endpoint doesn't return messages
+
+
 def test_empty_query_validation(client):
     """Test that empty queries are rejected."""
     # Create session

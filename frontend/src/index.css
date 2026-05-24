@@ -1,0 +1,471 @@
+/* Import Google Fonts - Financial Editorial Typography */
+@import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@400;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Financial Editorial Color Palette */
+    --color-paper: #fef8f3;
+    --color-paper-dark: #f5ede5;
+    --color-ink: #1a1614;
+    --color-ink-light: #4a4542;
+    --color-ink-lighter: #6a6562;
+
+    /* Signature salmon/coral accent - inspired by FT */
+    --color-salmon: #ff8b7b;
+    --color-salmon-light: #ffb5a7;
+    --color-salmon-dark: #e6705f;
+    --color-salmon-subtle: #fff5f3;
+
+    /* Supporting colors */
+    --color-gold: #d4a574;
+    --color-gold-light: #e8c9a0;
+    --color-sage: #8b9d83;
+    --color-slate: #5a6b7a;
+
+    /* Semantic colors */
+    --color-success: #2d7a5f;
+    --color-warning: #c97d3a;
+    --color-error: #c94d3a;
+
+    /* Borders and dividers */
+    --color-border: #e5d5c8;
+    --color-border-light: #f0e5db;
+    --color-divider: #d8c8b8;
+
+    /* Shadows */
+    --shadow-sm: 0 1px 2px rgba(26, 22, 20, 0.04);
+    --shadow-md: 0 2px 8px rgba(26, 22, 20, 0.08);
+    --shadow-lg: 0 4px 16px rgba(26, 22, 20, 0.12);
+
+    /* Transitions */
+    --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-base: 250ms cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-slow: 400ms cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  body {
+    margin: 0;
+    padding: 0;
+    font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    background: var(--color-paper);
+    color: var(--color-ink);
+    font-size: 16px;
+    line-height: 1.6;
+  }
+
+  /* Typography hierarchy */
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Libre Baskerville', Georgia, serif;
+    font-weight: 700;
+    line-height: 1.2;
+    color: var(--color-ink);
+  }
+
+  /* Monospace elements */
+  code, kbd, pre, samp {
+    font-family: 'IBM Plex Mono', 'Courier New', monospace;
+  }
+}
+
+#root {
+  width: 100%;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* ============================================
+   APP LAYOUT - Financial Editorial Design
+   ============================================ */
+
+.app-layout {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: var(--color-paper);
+}
+
+/* Header - Editorial masthead style */
+.app-header {
+  background: var(--color-ink);
+  border-bottom: 3px solid var(--color-salmon);
+  padding: 0;
+  position: relative;
+  z-index: 100;
+}
+
+.header-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 2rem;
+  max-width: 100%;
+}
+
+.logo-section {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.logo-mark {
+  width: 48px;
+  height: 48px;
+  background: linear-gradient(135deg, var(--color-salmon), var(--color-salmon-dark));
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Libre Baskerville', serif;
+  font-weight: 700;
+  font-size: 20px;
+  letter-spacing: -0.5px;
+  border-radius: 2px;
+}
+
+.logo-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.logo-title {
+  font-family: 'Libre Baskerville', serif;
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--color-paper);
+  margin: 0;
+  line-height: 1;
+  letter-spacing: -0.5px;
+}
+
+.logo-subtitle {
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-salmon-light);
+  margin: 0;
+  line-height: 1;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  margin-top: 4px;
+}
+
+.header-actions {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.terminal-toggle {
+  background: transparent;
+  border: 1px solid var(--color-salmon);
+  color: var(--color-salmon);
+  padding: 0.5rem;
+  border-radius: 2px;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.terminal-toggle:hover {
+  background: var(--color-salmon);
+  color: var(--color-ink);
+}
+
+/* Main Layout Grid */
+.app-main {
+  display: grid;
+  grid-template-columns: 280px 1fr 380px;
+  height: calc(100vh - 81px);
+  overflow: hidden;
+  position: relative;
+}
+
+/* Session Sidebar */
+.session-sidebar-container {
+  background: var(--color-paper-dark);
+  border-right: 1px solid var(--color-border);
+  overflow-y: auto;
+  position: relative;
+}
+
+/* Content Area - Main chat */
+.content-area {
+  display: flex;
+  flex-direction: column;
+  background: var(--color-paper);
+  position: relative;
+  overflow: hidden;
+}
+
+.chat-section {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Insights Panel - Right sidebar */
+.insights-panel {
+  background: var(--color-salmon-subtle);
+  border-left: 1px solid var(--color-salmon-light);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
+}
+
+.panel-header {
+  padding: 1.5rem 1.5rem 1rem;
+  background: linear-gradient(180deg, var(--color-salmon-subtle) 0%, transparent 100%);
+}
+
+.panel-title {
+  font-family: 'Libre Baskerville', serif;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--color-ink);
+  margin: 0 0 0.75rem 0;
+  letter-spacing: -0.3px;
+}
+
+.panel-divider {
+  height: 2px;
+  background: linear-gradient(90deg, var(--color-salmon) 0%, transparent 100%);
+  opacity: 0.5;
+}
+
+.panel-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 1.5rem 1.5rem;
+}
+
+.insight-section {
+  margin-bottom: 2rem;
+}
+
+.insight-section:last-child {
+  margin-bottom: 0;
+}
+
+.section-label {
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-ink-light);
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  margin: 0 0 1rem 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.label-icon {
+  font-size: 16px;
+}
+
+/* Terminal Container */
+.terminal-container {
+  position: fixed;
+  bottom: 0;
+  left: 280px;
+  right: 0;
+  height: 300px;
+  z-index: 50;
+  border-top: 2px solid var(--color-salmon);
+  box-shadow: 0 -4px 16px rgba(26, 22, 20, 0.1);
+}
+
+/* Custom Scrollbar - Editorial style */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-paper-dark);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border: 2px solid var(--color-paper-dark);
+  border-radius: 5px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-divider);
+}
+
+::-webkit-scrollbar-corner {
+  background: var(--color-paper-dark);
+}
+
+/* Selection */
+::selection {
+  background: var(--color-salmon-light);
+  color: var(--color-ink);
+}
+
+/* Focus visible */
+:focus-visible {
+  outline: 2px solid var(--color-salmon);
+  outline-offset: 2px;
+}
+
+/* Utility classes */
+@layer utilities {
+  .text-mono {
+    font-family: 'IBM Plex Mono', 'Courier New', monospace;
+  }
+
+  .text-serif {
+    font-family: 'Libre Baskerville', Georgia, serif;
+  }
+
+  .text-sans {
+    font-family: 'IBM Plex Sans', sans-serif;
+  }
+
+  .border-editorial {
+    border-color: var(--color-border);
+  }
+
+  .bg-paper {
+    background-color: var(--color-paper);
+  }
+
+  .bg-paper-dark {
+    background-color: var(--color-paper-dark);
+  }
+
+  .text-salmon {
+    color: var(--color-salmon);
+  }
+
+  .bg-salmon {
+    background-color: var(--color-salmon);
+  }
+
+  /* Decorative elements */
+  .editorial-rule {
+    height: 1px;
+    background: linear-gradient(90deg, var(--color-salmon) 0%, transparent 100%);
+    margin: 1.5rem 0;
+  }
+
+  .citation-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 6px;
+    background: var(--color-salmon);
+    color: white;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    font-weight: 500;
+    border-radius: 2px;
+    line-height: 1;
+  }
+}
+
+/* Animation keyframes */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes pulseGlow {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(255, 139, 123, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(255, 139, 123, 0);
+  }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.4s ease-out;
+}
+
+.animate-slide-up {
+  animation: slideUp 0.3s ease-out;
+}
+
+.animate-slide-in-right {
+  animation: slideInRight 0.4s ease-out;
+}
+
+.animate-pulse-glow {
+  animation: pulseGlow 2s ease-in-out infinite;
+}
+
+/* Stagger animation delays for list items */
+.stagger-1 { animation-delay: 0.05s; }
+.stagger-2 { animation-delay: 0.1s; }
+.stagger-3 { animation-delay: 0.15s; }
+.stagger-4 { animation-delay: 0.2s; }
+.stagger-5 { animation-delay: 0.25s; }
+
+/* Responsive adjustments */
+@media (max-width: 1400px) {
+  .app-main {
+    grid-template-columns: 260px 1fr 340px;
+  }
+}
+
+@media (max-width: 1200px) {
+  .app-main {
+    grid-template-columns: 240px 1fr 320px;
+  }
+
+  .panel-content {
+    padding: 0 1rem 1rem;
+  }
+}
+
+@media (max-width: 1024px) {
+  .app-main {
+    grid-template-columns: 220px 1fr;
+  }
+
+  .insights-panel {
+    display: none;
+  }
+}

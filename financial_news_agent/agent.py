@@ -229,8 +229,9 @@ def run_agent(user_query: str, messages: list) -> tuple[dict, list]:
                     "tool_calls": assistant_message.tool_calls
                 })
 
-                # Track reasoning if there's text content
-                if assistant_message.content:
+                # Track reasoning if there's text content AND tool calls
+                # (Don't add final answer to reasoning steps)
+                if assistant_message.content and assistant_message.tool_calls:
                     tracker.add_reasoning(assistant_message.content)
 
                 # Check if we have tool calls to execute
@@ -517,8 +518,9 @@ async def run_agent_stream(
                 if delta.tool_calls:
                     _merge_tool_call_delta(accumulated["tool_calls"], delta.tool_calls)
 
-            # Track reasoning
-            if accumulated["content"]:
+            # Track reasoning if there's text content AND tool calls
+            # (Don't add final answer to reasoning steps)
+            if accumulated["content"] and accumulated["tool_calls"]:
                 tracker.add_reasoning(accumulated["content"])
 
             # Add assistant message to conversation

@@ -57,6 +57,8 @@ class SessionManager:
     ) -> bool:
         """Update session with new messages and optional result metadata.
 
+        If result is provided, embeds it into the last assistant message.
+
         Args:
             session_id: Session UUID
             messages: Updated messages list
@@ -68,6 +70,20 @@ class SessionManager:
         session = self._sessions.get(session_id)
         if not session:
             return False
+
+        # If result provided, embed it into the last assistant message
+        if result and messages:
+            # Find the last assistant message
+            for i in range(len(messages) - 1, -1, -1):
+                if messages[i].get("role") == "assistant":
+                    # Embed all result data directly into the message
+                    messages[i]["sources"] = result.get("sources", [])
+                    messages[i]["evaluation"] = result.get("evaluation")
+                    messages[i]["tool_calls"] = result.get("tool_calls", [])
+                    messages[i]["reasoning_steps"] = result.get("reasoning_steps", [])
+                    messages[i]["trace"] = result.get("trace")
+                    messages[i]["retry_history"] = result.get("retry_history")
+                    break
 
         session["messages"] = messages
         session["last_activity"] = datetime.now(UTC).isoformat().replace("+00:00", "Z")

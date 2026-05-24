@@ -61,6 +61,67 @@ curl http://localhost:8000/api/v1/session/{SESSION_ID}
 curl http://localhost:8000/api/v1/session/{SESSION_ID}/messages
 ```
 
+### 8. Get Historical Query Results
+```bash
+# Get session metadata with query history
+curl http://localhost:8000/api/v1/session/{SESSION_ID}
+
+# Or get messages with query history
+curl http://localhost:8000/api/v1/session/{SESSION_ID}/messages
+```
+
+Both endpoints return `query_results` array containing complete trace data for all queries in the session, including sources, tool calls, reasoning steps, and timing information.
+
+### 9. Delete Session
+```bash
+curl -X DELETE http://localhost:8000/api/v1/session/{SESSION_ID}
+```
+
+## Retrieving Historical Query Results
+
+Each session stores complete trace data for all queries, including sources, tool calls, reasoning steps, and timing information. This allows you to:
+- Review what news articles were used in previous queries
+- Audit which API calls were made
+- Analyze the agent's reasoning process
+- Track performance metrics over time
+
+**Example Response:**
+```json
+{
+  "session_id": "abc-123",
+  "query_results": [
+    {
+      "query": "What's happening with Tesla?",
+      "timestamp": "2026-05-24T10:30:00Z",
+      "result": {
+        "answer": "Tesla stock rose 5% today...",
+        "sources": [
+          {
+            "title": "Tesla Stock Surges",
+            "url": "https://...",
+            "date": "2026-05-24",
+            "summary": "..."
+          }
+        ],
+        "tool_calls": [
+          {
+            "tool": "search_financial_news",
+            "args": {"query": "Tesla", "days_back": 7}
+          }
+        ],
+        "reasoning_steps": ["Searched for Tesla news...", "..."],
+        "trace": { /* complete traceability data */ },
+        "evaluation": {
+          "accuracy": 8,
+          "relevance": 9,
+          "overall": 8.5
+        }
+      }
+    }
+  ]
+}
+```
+
 ### 8. Delete Session
 ```bash
 curl -X DELETE http://localhost:8000/api/v1/session/{SESSION_ID}
