@@ -64,34 +64,42 @@ export default function AppLayout() {
         </main>
 
         {/* Right Panel - Sources & Evaluation */}
-        {currentSessionId && latestAgentMessage && (
-          <aside className="insights-panel">
-            <div className="panel-header">
-              <h2 className="panel-title">Analysis Insights</h2>
-              <div className="panel-divider" />
-            </div>
+        <aside className="insights-panel">
+          <div className="panel-header">
+            <h2 className="panel-title">Analysis Insights</h2>
+            <div className="panel-divider" />
+          </div>
 
-            <div className="panel-content">
-              {/* Sources Section */}
-              <section className="insight-section">
-                <h3 className="section-label">
-                  <span className="label-icon">📰</span>
-                  Source Material
-                </h3>
-                <SourcesPanel message={latestAgentMessage} />
-              </section>
+          <div className="panel-content">
+            {currentSessionId && latestAgentMessage ? (
+              <>
+                {/* Sources Section */}
+                <section className="insight-section">
+                  <h3 className="section-label">
+                    <span className="label-icon">📰</span>
+                    Source Material
+                  </h3>
+                  <SourcesPanel message={latestAgentMessage} />
+                </section>
 
-              {/* Evaluation Section */}
-              <section className="insight-section">
-                <h3 className="section-label">
-                  <span className="label-icon">📊</span>
-                  Quality Assessment
-                </h3>
-                <EvaluationPanel message={latestAgentMessage} />
-              </section>
-            </div>
-          </aside>
-        )}
+                {/* Evaluation Section */}
+                <section className="insight-section">
+                  <h3 className="section-label">
+                    <span className="label-icon">📊</span>
+                    Quality Assessment
+                  </h3>
+                  <EvaluationPanel message={latestAgentMessage} />
+                </section>
+              </>
+            ) : (
+              <div className="empty-state">
+                <p className="empty-state-text">
+                  Analysis insights will appear here after you submit a query.
+                </p>
+              </div>
+            )}
+          </div>
+        </aside>
       </div>
 
       {/* Terminal Panel */}
