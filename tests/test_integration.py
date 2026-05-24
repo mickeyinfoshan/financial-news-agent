@@ -10,13 +10,14 @@ import os
 
 import pytest
 
-from financial_news_agent.news_tool import (
+from financial_news_agent.news_tool import search_financial_news
+from financial_news_agent.news_sources.finnhub import (
     _search_symbol_finnhub,
+    _extract_ticker,
     _search_finnhub_news,
-    _search_newsapi,
-    search_financial_news,
-    _extract_ticker
+    FinnhubProvider
 )
+from financial_news_agent.news_sources.newsapi import NewsAPIProvider, _search_newsapi
 
 
 @pytest.mark.integration

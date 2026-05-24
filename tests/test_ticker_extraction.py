@@ -1,6 +1,6 @@
 """Tests for ticker extraction logic."""
 
-from financial_news_agent.news_tool import _extract_ticker, COMMON_TICKERS
+from financial_news_agent.news_sources.finnhub import _extract_ticker, COMMON_TICKERS
 
 
 class TestTickerExtraction:
@@ -66,7 +66,7 @@ class TestTickerExtraction:
         """Test that API lookup is called for non-dictionary companies."""
         # Mock the API call
         mock_search = mocker.patch(
-            'financial_news_agent.news_tool._search_symbol_finnhub',
+            'financial_news_agent.news_sources.finnhub._search_symbol_finnhub',
             return_value="PLTR"
         )
 
@@ -80,7 +80,7 @@ class TestTickerExtraction:
         """Test fallback when API lookup returns None."""
         # Mock API to return None
         mocker.patch(
-            'financial_news_agent.news_tool._search_symbol_finnhub',
+            'financial_news_agent.news_sources.finnhub._search_symbol_finnhub',
             return_value=None
         )
 
