@@ -282,11 +282,6 @@ export default function ChatContainer() {
           cursor: pointer;
         }
 
-        .message.agent:hover .agent-message {
-          transform: translateX(-2px);
-          transition: transform var(--transition-fast);
-        }
-
         .message.agent.selected .agent-message {
           border: 2px solid var(--color-salmon);
           box-shadow: 0 0 0 4px rgba(255, 139, 123, 0.1);
