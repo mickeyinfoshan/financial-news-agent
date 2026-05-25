@@ -54,18 +54,31 @@ For each claim, identify the citation numbers referenced.
 ANSWER:
 {answer}
 
-Return JSON array in this exact format:
-[
-  {{"claim": "Apple's revenue increased 15% in Q1", "citations": [1, 2]}},
-  {{"claim": "Analysts predict continued growth", "citations": [3]}}
-]
-
 RULES:
 1. Extract ONLY factual claims (not opinions or meta-statements)
-2. Keep claim text EXACTLY as written in the answer
+2. Keep claim text EXACTLY as written in the answer (without citation markers)
 3. Include ALL citation numbers [1], [2] for each claim
 4. If a sentence has no citations, omit it
 5. Return valid JSON only, no markdown
+
+EXAMPLES:
+
+Input: "Apple's revenue increased 15% in Q1 [1]. The company reported strong iPhone sales [1][2]. Analysts are optimistic [3]."
+Output:
+[
+  {{"claim": "Apple's revenue increased 15% in Q1", "citations": [1]}},
+  {{"claim": "The company reported strong iPhone sales", "citations": [1, 2]}},
+  {{"claim": "Analysts are optimistic", "citations": [3]}}
+]
+
+Input: "Tesla stock rose 5% [1][2]. This follows strong earnings. The EV market is growing [3]."
+Output:
+[
+  {{"claim": "Tesla stock rose 5%", "citations": [1, 2]}},
+  {{"claim": "The EV market is growing", "citations": [3]}}
+]
+
+Now extract claims from the answer above.
 
 JSON:"""
 
