@@ -7,13 +7,17 @@
 [![Type checked: mypy](https://img.shields.io/badge/type%20checked-mypy-blue.svg)](http://mypy-lang.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688.svg)](https://fastapi.tiangolo.com)
 [![OpenAI](https://img.shields.io/badge/OpenAI-GPT--5.5-412991.svg)](https://openai.com)
+[![React](https://img.shields.io/badge/React-19.2+-61DAFB.svg)](https://react.dev)
+[![Vite](https://img.shields.io/badge/Vite-8.0+-646CFF.svg)](https://vitejs.dev)
 
 AI agent that searches recent financial news and provides analysis with storylines and future impact assessments.
+
+![Financial News Agent Frontend](docs/screenshot-frontend.png)
 
 ## Features
 
 - 🔍 Multi-source financial news search (NewsAPI, Finnhub, Marketaux)
-- 🤖 LLM-powered analysis with OpenAI GPT-4
+- 🤖 LLM-powered analysis with OpenAI GPT-5.5
 - 📊 Storyline generation and future impact analysis
 - ✅ Self-evaluation of response quality
 - 🔗 Full traceability of sources and reasoning
@@ -21,6 +25,7 @@ AI agent that searches recent financial news and provides analysis with storylin
 - 📈 Smart strategy selection (FIX vs REDO) based on evaluation scores
 - 🌐 FastAPI web service with streaming support (Server-Sent Events)
 - 🔌 Extensible provider system for adding new news sources
+- 💻 Modern React frontend with real-time streaming UI
 
 ## Setup
 
@@ -79,6 +84,15 @@ uv run python -m financial_news_agent
 ```bash
 uv run python .dev_process/test_agent.py
 ```
+
+**Frontend (Web UI):**
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+The frontend will be available at `http://localhost:5173` and connects to the API at `http://localhost:8000`.
 
 ## API Usage
 
@@ -248,6 +262,14 @@ User Query → Agent Loop (LLM + Tools) → Answer → Self-Evaluation
 - **Smart Selection**: Automatically chooses best strategy based on evaluation scores
 - **Cost Control**: Configurable retry limits (default: 1 retry max)
 
+## Frontend
+
+A modern React-based web interface is available in the `frontend/` directory:
+
+- **Tech Stack**: React 19, TypeScript, Vite, Tailwind CSS
+- **Features**: Real-time streaming, session management, markdown rendering
+- **Setup**: See `frontend/README.md` for detailed instructions
+
 ## Project Structure
 
 ```
@@ -282,6 +304,12 @@ financial_news_agent/
     ├── routes.py        # API endpoints
     ├── models.py        # Request/response models
     └── session_manager.py  # Session storage
+
+frontend/                # React web interface
+├── src/                 # React components and logic
+├── public/              # Static assets
+├── package.json         # Node.js dependencies
+└── vite.config.ts       # Vite configuration
 ```
 
 ## Response Format
