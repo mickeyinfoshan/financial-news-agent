@@ -4,11 +4,12 @@ import json
 import logging
 from typing import Any
 from openai import OpenAI
-from ..types import AgentResult, MessageDict, EvaluationResult, ArticleData, ContextConfig
+from ..types import AgentResult, MessageDict, EvaluationResult, ArticleData, ContextConfig, CitationValidationResult
 from ..traceability import TraceabilityTracker
 from ..evaluator import evaluate_response
 from ..context_manager import compress_tool_result
 from ..retry_manager import RetryConfig, decide_retry_strategy
+from ..citation_validator import validate_citations
 from .query_rewriter import rewrite_query_with_context
 
 logger = logging.getLogger(__name__)
@@ -110,9 +111,27 @@ def build_final_result(
     with tracker.time_operation("Query Rewriting", "llm_call", {"purpose": "context_resolution"}):
         rewritten_query: str = rewrite_query_with_context(user_query, messages, client)
 
+    # Citation validation
+    citation_validation: CitationValidationResult | None = None
+    with tracker.time_operation("Citation Validation", "validation", {"purpose": "citation_quality"}):
+        try:
+            citation_validation = validate_citations(final_answer, tracker.sources, client)
+            logger.info(
+                f"Citation validation: {len(citation_validation['claims'])} claims, "
+                f"{citation_validation['total_invalid_citations']} invalid citations, "
+                f"passed={citation_validation['validation_passed']}"
+            )
+        except Exception as e:
+            logger.error(f"Citation validation failed: {e}")
+
     # Self-evaluate the response with rewritten query
     with tracker.time_operation("Response Evaluation", "llm_call", {"purpose": "quality_assessment"}):
         evaluation: EvaluationResult = evaluate_response(final_answer, tracker, user_query=rewritten_query)
+
+    # Get trace and add citation validation
+    trace = tracker.get_trace()
+    if citation_validation:
+        trace["citation_validation"] = citation_validation
 
     # Return structured result
     result: AgentResult = {
@@ -121,7 +140,7 @@ def build_final_result(
         "tool_calls": tracker.tool_calls,
         "reasoning_steps": tracker.reasoning_steps,
         "evaluation": evaluation,
-        "trace": tracker.get_trace()
+        "trace": trace
     }
     return result
 

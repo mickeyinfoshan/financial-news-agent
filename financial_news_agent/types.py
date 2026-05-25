@@ -84,12 +84,36 @@ class TimingSummary(TypedDict):
     hierarchy: TimingNodeDict | None
 
 
+class ClaimData(TypedDict):
+    """Single claim with its citations and validation status."""
+    claim: str
+    citations: list[int]
+    invalid_citations: list[int]
+    validation_result: NotRequired['ClaimSourceValidation']
+
+
+class ClaimSourceValidation(TypedDict):
+    """LLM validation result for claim-source relationship."""
+    supported: bool
+    confidence: str
+    explanation: str
+
+
+class CitationValidationResult(TypedDict):
+    """Complete citation validation output."""
+    claims: list[ClaimData]
+    extraction_attempts: int
+    total_invalid_citations: int
+    validation_passed: bool
+
+
 class TraceData(TypedDict):
     """Complete trace data with sources, tool calls, and reasoning."""
     sources: list[SourceData]
     tool_calls: list[ToolCallRecord]
     reasoning_steps: list[str]
     timing: NotRequired[TimingSummary]
+    citation_validation: NotRequired[CitationValidationResult]
 
 
 class AgentResult(TypedDict):
