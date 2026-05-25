@@ -11,7 +11,7 @@ import clsx from 'clsx';
 export default function ChatContainer() {
   const { currentSessionId, createSession } = useSessionStore();
   const { messagesBySession, streamingState } = useMessageStore();
-  const { selectSource } = useUIStore();
+  const { selectSource, selectMessage, selectedMessageId } = useUIStore();
   const { submitStreamingQuery, isStreaming } = useStreamingQuery();
 
   const [input, setInput] = useState('');
@@ -59,12 +59,23 @@ export default function ChatContainer() {
     }
   };
 
-  const handleCitationClick = (citationNumber: number) => {
+  const handleCitationClick = (messageId: string, citationNumber: number) => {
+    // Select the message first, then highlight the source
+    selectMessage(messageId);
     selectSource(citationNumber);
   };
 
-  const renderMessageContent = (content: string) => {
-    return <MarkdownMessage content={content} onCitationClick={handleCitationClick} />;
+  const handleMessageClick = (messageId: string) => {
+    selectMessage(messageId);
+  };
+
+  const renderMessageContent = (content: string, messageId: string) => {
+    return (
+      <MarkdownMessage
+        content={content}
+        onCitationClick={(citationNumber) => handleCitationClick(messageId, citationNumber)}
+      />
+    );
   };
 
   const getStreamingStatusText = () => {
@@ -106,7 +117,21 @@ export default function ChatContainer() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.05 }}
-              className={clsx('message', message.role)}
+              className={clsx(
+                'message',
+                message.role,
+                message.role === 'agent' && selectedMessageId === message.id && 'selected'
+              )}
+              onClick={() => message.role === 'agent' && handleMessageClick(message.id)}
+              onKeyDown={(e) => {
+                if (message.role === 'agent' && (e.key === 'Enter' || e.key === ' ')) {
+                  e.preventDefault();
+                  handleMessageClick(message.id);
+                }
+              }}
+              role={message.role === 'agent' ? 'button' : undefined}
+              tabIndex={message.role === 'agent' ? 0 : undefined}
+              aria-label={message.role === 'agent' ? 'Select this message to view its sources' : undefined}
             >
               {message.role === 'user' ? (
                 <div className="message-content user-message">
@@ -115,7 +140,7 @@ export default function ChatContainer() {
               ) : (
                 <div className="message-content agent-message">
                   <div className="message-text">
-                    {renderMessageContent(message.content)}
+                    {renderMessageContent(message.content, message.id)}
                   </div>
                 </div>
               )}
@@ -141,7 +166,7 @@ export default function ChatContainer() {
               </div>
               {streamingState.accumulatedText && (
                 <div className="message-text">
-                  {renderMessageContent(streamingState.accumulatedText)}
+                  {renderMessageContent(streamingState.accumulatedText, 'streaming')}
                   <span className="cursor-blink">▊</span>
                 </div>
               )}
@@ -251,6 +276,26 @@ export default function ChatContainer() {
 
         .message.assistant {
           justify-content: flex-start;
+        }
+
+        .message.agent {
+          cursor: pointer;
+          transition: all var(--transition-fast);
+        }
+
+        .message.agent:hover {
+          transform: translateX(-2px);
+        }
+
+        .message.agent.selected {
+          border: 2px solid var(--color-salmon);
+          background: var(--color-salmon-subtle);
+          box-shadow: 0 0 0 4px rgba(255, 139, 123, 0.1);
+        }
+
+        .message.agent.selected .agent-message {
+          background: transparent;
+          border-color: transparent;
         }
 
         .message-content {

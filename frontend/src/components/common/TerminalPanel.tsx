@@ -1,29 +1,24 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, ChevronDown, ChevronRight, Copy, Check } from 'lucide-react';
-import { useMessageStore } from '@/store/messageStore';
-import { useSessionStore } from '@/store/sessionStore';
+import { Message } from '@/types/message';
 
 interface TerminalPanelProps {
+  message: Message | undefined;
   onClose: () => void;
 }
 
-export default function TerminalPanel({ onClose }: TerminalPanelProps) {
-  const { currentSessionId } = useSessionStore();
-  const { messagesBySession } = useMessageStore();
+export default function TerminalPanel({ message, onClose }: TerminalPanelProps) {
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(['latest']));
   const [copied, setCopied] = useState(false);
   const terminalRef = useRef<HTMLDivElement>(null);
-
-  const currentMessages = currentSessionId ? messagesBySession[currentSessionId] || [] : [];
-  const latestAgentMessage = [...currentMessages].reverse().find(m => m.role === 'agent');
 
   useEffect(() => {
     // Auto-scroll to bottom
     if (terminalRef.current) {
       terminalRef.current.scrollTop = terminalRef.current.scrollHeight;
     }
-  }, [latestAgentMessage]);
+  }, [message]);
 
   const toggleSection = (sectionId: string) => {
     setExpandedSections(prev => {
@@ -38,17 +33,17 @@ export default function TerminalPanel({ onClose }: TerminalPanelProps) {
   };
 
   const handleCopy = () => {
-    if (!latestAgentMessage?.metadata) return;
+    if (!message?.metadata) return;
 
-    const content = JSON.stringify(latestAgentMessage.metadata, null, 2);
+    const content = JSON.stringify(message.metadata, null, 2);
     navigator.clipboard.writeText(content);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const toolCalls = latestAgentMessage?.metadata?.tool_calls || [];
-  const reasoning = latestAgentMessage?.metadata?.reasoning_steps || [];
-  const timing = latestAgentMessage?.metadata?.timing;
+  const toolCalls = message?.metadata?.tool_calls || [];
+  const reasoning = message?.metadata?.reasoning_steps || [];
+  const timing = message?.metadata?.timing;
 
   // Extract timing data from backend structure
   const breakdown = timing?.breakdown || {};
@@ -92,7 +87,7 @@ export default function TerminalPanel({ onClose }: TerminalPanelProps) {
 
       {/* Terminal Content */}
       <div ref={terminalRef} className="terminal-content">
-        {!latestAgentMessage ? (
+        {!message ? (
           <div className="terminal-empty">
             <p>No execution trace available. Submit a query to see agent activity.</p>
           </div>

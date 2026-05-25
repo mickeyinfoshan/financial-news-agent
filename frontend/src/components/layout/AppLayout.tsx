@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useSessionStore } from '@/store/sessionStore';
 import { useMessageStore } from '@/store/messageStore';
+import { useUIStore } from '@/store/uiStore';
 import SessionSidebar from '@/components/session/SessionSidebar';
 import ChatContainer from '@/components/chat/ChatContainer';
 import SourcesPanel from '@/components/sources/SourcesPanel';
@@ -10,16 +11,42 @@ import TerminalPanel from '@/components/common/TerminalPanel';
 export default function AppLayout() {
   const { currentSessionId } = useSessionStore();
   const { messagesBySession } = useMessageStore();
+  const { selectedMessageId, selectMessage } = useUIStore();
   const [showTerminal, setShowTerminal] = useState(false);
 
   const currentMessages = currentSessionId
     ? messagesBySession[currentSessionId] || []
     : [];
 
-  // Get the latest agent message for sources and evaluation
-  const latestAgentMessage = [...currentMessages]
-    .reverse()
-    .find(m => m.role === 'agent');
+  // Get agent messages
+  const agentMessages = useMemo(
+    () => currentMessages.filter(m => m.role === 'agent'),
+    [currentMessages]
+  );
+
+  // Determine which message to display in sidebar
+  const selectedMessage = useMemo(() => {
+    if (selectedMessageId) {
+      // User explicitly selected a message
+      const found = agentMessages.find(m => m.id === selectedMessageId);
+      if (found) return found;
+      // If selected message no longer exists, fall back to latest
+    }
+    // Default: latest agent message
+    return agentMessages[agentMessages.length - 1];
+  }, [selectedMessageId, agentMessages]);
+
+  // Auto-select latest message when none selected
+  useEffect(() => {
+    if (!selectedMessageId && agentMessages.length > 0) {
+      selectMessage(agentMessages[agentMessages.length - 1].id);
+    }
+  }, [selectedMessageId, agentMessages, selectMessage]);
+
+  // Clear selection on session switch
+  useEffect(() => {
+    selectMessage(null);
+  }, [currentSessionId, selectMessage]);
 
   return (
     <div className="app-layout">
@@ -71,7 +98,7 @@ export default function AppLayout() {
           </div>
 
           <div className="panel-content">
-            {currentSessionId && latestAgentMessage ? (
+            {currentSessionId && selectedMessage ? (
               <>
                 {/* Sources Section */}
                 <section className="insight-section">
@@ -79,7 +106,7 @@ export default function AppLayout() {
                     <span className="label-icon">📰</span>
                     Source Material
                   </h3>
-                  <SourcesPanel message={latestAgentMessage} />
+                  <SourcesPanel message={selectedMessage} />
                 </section>
 
                 {/* Evaluation Section */}
@@ -88,7 +115,7 @@ export default function AppLayout() {
                     <span className="label-icon">📊</span>
                     Quality Assessment
                   </h3>
-                  <EvaluationPanel message={latestAgentMessage} />
+                  <EvaluationPanel message={selectedMessage} />
                 </section>
               </>
             ) : (
@@ -105,7 +132,7 @@ export default function AppLayout() {
       {/* Terminal Panel */}
       {showTerminal && (
         <div className="terminal-container">
-          <TerminalPanel onClose={() => setShowTerminal(false)} />
+          <TerminalPanel message={selectedMessage} onClose={() => setShowTerminal(false)} />
         </div>
       )}
     </div>
