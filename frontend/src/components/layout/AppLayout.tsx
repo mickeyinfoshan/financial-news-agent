@@ -36,12 +36,13 @@ export default function AppLayout() {
     return agentMessages[agentMessages.length - 1];
   }, [selectedMessageId, agentMessages]);
 
-  // Auto-select latest message when none selected
+  // Auto-select latest message when it changes (new message arrives)
   useEffect(() => {
-    if (!selectedMessageId && agentMessages.length > 0) {
-      selectMessage(agentMessages[agentMessages.length - 1].id);
+    const latestMessage = agentMessages[agentMessages.length - 1];
+    if (latestMessage) {
+      selectMessage(latestMessage.id);
     }
-  }, [selectedMessageId, agentMessages, selectMessage]);
+  }, [agentMessages.length, selectMessage]);
 
   // Clear selection on session switch
   useEffect(() => {
