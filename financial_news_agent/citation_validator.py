@@ -11,6 +11,7 @@ This module implements a 5-stage validation pipeline:
 import os
 import json
 import logging
+import re
 from typing import Any
 from openai import OpenAI
 from .types import (
@@ -163,8 +164,6 @@ def validate_extraction(
     Returns:
         Tuple of (validation_passed: bool, errors: list[str])
     """
-    import re
-
     errors = []
 
     # Remove all citation markers [1], [2], etc. from answer for claim matching
