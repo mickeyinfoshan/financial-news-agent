@@ -128,11 +128,6 @@ def build_final_result(
     with tracker.time_operation("Response Evaluation", "llm_call", {"purpose": "quality_assessment"}):
         evaluation: EvaluationResult = evaluate_response(final_answer, tracker, user_query=rewritten_query)
 
-    # Get trace and add citation validation
-    trace = tracker.get_trace()
-    if citation_validation:
-        trace["citation_validation"] = citation_validation
-
     # Return structured result
     result: AgentResult = {
         "answer": final_answer,
@@ -140,8 +135,13 @@ def build_final_result(
         "tool_calls": tracker.tool_calls,
         "reasoning_steps": tracker.reasoning_steps,
         "evaluation": evaluation,
-        "trace": trace
+        "trace": tracker.get_trace()
     }
+
+    # Add citation validation if available
+    if citation_validation:
+        result["citation_validation"] = citation_validation
+
     return result
 
 

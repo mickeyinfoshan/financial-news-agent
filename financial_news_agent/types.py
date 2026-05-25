@@ -113,7 +113,6 @@ class TraceData(TypedDict):
     tool_calls: list[ToolCallRecord]
     reasoning_steps: list[str]
     timing: NotRequired[TimingSummary]
-    citation_validation: NotRequired[CitationValidationResult]
 
 
 class AgentResult(TypedDict):
@@ -125,6 +124,7 @@ class AgentResult(TypedDict):
     evaluation: EvaluationResult
     trace: TraceData
     retry_history: NotRequired[list[RetryAttempt]]
+    citation_validation: NotRequired[CitationValidationResult]
 
 
 class ContextConfig(TypedDict):
