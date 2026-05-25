@@ -205,6 +205,9 @@ class TestSearchFinancialNews:
             }
         ]
 
+        # Disable Marketaux provider
+        mocker.patch('financial_news_agent.news_sources.marketaux.MarketauxProvider.is_available', new_callable=mocker.PropertyMock, return_value=False)
+
         result = search_financial_news("nvidia", days_back=7)
 
         assert len(result) == 2
@@ -225,6 +228,9 @@ class TestSearchFinancialNews:
             {"title": "News 1 Duplicate", "url": "https://example.com/1", "published_at": "2026-05-22T10:00:00Z"}
         ]
 
+        # Disable Marketaux provider
+        mocker.patch('financial_news_agent.news_sources.marketaux.MarketauxProvider.is_available', new_callable=mocker.PropertyMock, return_value=False)
+
         result = search_financial_news("nvidia")
 
         # Should only have 1 article after deduplication
@@ -243,6 +249,9 @@ class TestSearchFinancialNews:
         mock_finnhub.return_value = [
             {"title": "Newer", "url": "https://example.com/2", "published_at": "2026-05-22T10:00:00Z"}
         ]
+
+        # Disable Marketaux provider
+        mocker.patch('financial_news_agent.news_sources.marketaux.MarketauxProvider.is_available', new_callable=mocker.PropertyMock, return_value=False)
 
         result = search_financial_news("nvidia")
 
