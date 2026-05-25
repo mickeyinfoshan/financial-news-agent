@@ -15,11 +15,9 @@ from typing import Any
 from openai import OpenAI
 from .types import (
     ClaimData,
-    ClaimSourceValidation,
     CitationValidationResult,
     SourceData
 )
-from .utils import extract_citations
 
 logger = logging.getLogger(__name__)
 
