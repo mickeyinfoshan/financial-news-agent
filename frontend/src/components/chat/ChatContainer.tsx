@@ -280,22 +280,16 @@ export default function ChatContainer() {
 
         .message.agent {
           cursor: pointer;
-          transition: all var(--transition-fast);
         }
 
-        .message.agent:hover {
+        .message.agent:hover .agent-message {
           transform: translateX(-2px);
-        }
-
-        .message.agent.selected {
-          border: 2px solid var(--color-salmon);
-          background: var(--color-salmon-subtle);
-          box-shadow: 0 0 0 4px rgba(255, 139, 123, 0.1);
+          transition: transform var(--transition-fast);
         }
 
         .message.agent.selected .agent-message {
-          background: transparent;
-          border-color: transparent;
+          border: 2px solid var(--color-salmon);
+          box-shadow: 0 0 0 4px rgba(255, 139, 123, 0.1);
         }
 
         .message-content {
