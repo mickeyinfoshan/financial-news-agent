@@ -24,10 +24,10 @@ def load_config() -> ContextConfig:
         dict: Configuration dictionary with thresholds and settings
     """
     return {
-        "token_threshold": int(os.getenv("CONTEXT_TOKEN_THRESHOLD", "12000")),
-        "message_threshold": int(os.getenv("CONTEXT_MESSAGE_THRESHOLD", "15")),
-        "recent_messages": int(os.getenv("CONTEXT_RECENT_MESSAGES", "4")),
-        "warning_threshold": int(os.getenv("CONTEXT_WARNING_THRESHOLD", "8000")),
+        "token_threshold": int(os.getenv("CONTEXT_TOKEN_THRESHOLD", "600000")),
+        "message_threshold": int(os.getenv("CONTEXT_MESSAGE_THRESHOLD", "100")),
+        "recent_messages": int(os.getenv("CONTEXT_RECENT_MESSAGES", "20")),
+        "warning_threshold": int(os.getenv("CONTEXT_WARNING_THRESHOLD", "400000")),
         "max_articles": int(os.getenv("CONTEXT_MAX_ARTICLES", "10")),
         "enable_compression": os.getenv("CONTEXT_ENABLE_COMPRESSION", "true").lower() == "true"
     }

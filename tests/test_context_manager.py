@@ -295,9 +295,9 @@ class TestLoadConfig:
         """Test default config values."""
         config = load_config()
 
-        assert config["token_threshold"] == 12000
-        assert config["message_threshold"] == 15
-        assert config["recent_messages"] == 4
-        assert config["warning_threshold"] == 8000
+        assert config["token_threshold"] == 600000
+        assert config["message_threshold"] == 100
+        assert config["recent_messages"] == 20
+        assert config["warning_threshold"] == 400000
         assert config["max_articles"] == 10
         assert config["enable_compression"] is True
