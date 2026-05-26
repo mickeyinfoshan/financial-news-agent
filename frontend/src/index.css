@@ -31,6 +31,14 @@
     --color-warning: #c97d3a;
     --color-error: #c94d3a;
 
+    /* Citation Validation colors */
+    --color-validation-success: #2d7a5f;
+    --color-validation-success-bg: #e8f5f0;
+    --color-validation-warning: #d4a03a;
+    --color-validation-warning-bg: #fef9ed;
+    --color-validation-error: #c94d3a;
+    --color-validation-error-bg: #fef0ed;
+
     /* Borders and dividers */
     --color-border: #e5d5c8;
     --color-border-light: #f0e5db;
