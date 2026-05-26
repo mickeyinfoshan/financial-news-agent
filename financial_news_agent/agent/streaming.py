@@ -8,11 +8,9 @@ from openai import AsyncOpenAI, OpenAI
 from ..types import AgentResult, MessageDict, EvaluationResult, ContextConfig, ArticleData
 from ..traceability import TraceabilityTracker
 from ..news_tool import get_tool_schema, execute_tool
-from ..evaluator import evaluate_response
 from ..context_manager import load_config
 from ..retry_manager import RetryConfig, build_fix_prompt, build_redo_prompt
 from .prompts import SYSTEM_PROMPT
-from .query_rewriter import rewrite_query_with_context
 from .sync import create_conversation
 from . import shared
 
@@ -199,31 +197,31 @@ async def run_agent_stream(
     if final_answer is None:
         final_answer = "Agent reached maximum iterations without completing the analysis."
 
-    # Rewrite query for evaluation (using sync client)
+    # Create sync client for evaluation operations
     sync_client = OpenAI(
         api_key=os.getenv("OPENAI_API_KEY"),
         base_url=os.getenv("OPENAI_BASE_URL")
     )
-    rewritten_query = rewrite_query_with_context(user_query, messages, sync_client)
 
-    # Self-evaluate
-    evaluation: EvaluationResult = evaluate_response(str(final_answer), tracker, user_query=rewritten_query)
+    # Step 1: Rewrite query
+    rewritten_query = shared.do_query_rewriting(user_query, messages, sync_client, tracker)
+
+    # Step 2: Validate citations
+    citation_validation = shared.do_citation_validation(final_answer, tracker.sources, sync_client, tracker)
+    if citation_validation:
+        yield {"event": "citation_validation", "data": citation_validation}
+
+    # Step 3: Evaluate response
+    evaluation = shared.do_evaluation(final_answer, tracker, rewritten_query)
     yield {"event": "evaluation", "data": evaluation}
 
-    # Emit timing summary
+    # Step 4: Emit timing summary
     timing_summary = tracker.get_timing_summary()
     if timing_summary["total_duration_ms"] > 0:
         yield {"event": "timing", "data": timing_summary}
 
-    # Build final result
-    result: AgentResult = {
-        "answer": str(final_answer),
-        "sources": tracker.sources,
-        "tool_calls": tracker.tool_calls,
-        "reasoning_steps": tracker.reasoning_steps,
-        "evaluation": evaluation,
-        "trace": tracker.get_trace()
-    }
+    # Step 5: Build final result
+    result = shared.build_agent_result(final_answer, tracker, evaluation, citation_validation)
 
     # Final event with complete result
     yield {

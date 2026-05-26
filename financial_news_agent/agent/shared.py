@@ -15,6 +15,87 @@ from .query_rewriter import rewrite_query_with_context
 logger = logging.getLogger(__name__)
 
 
+def do_query_rewriting(
+    user_query: str,
+    messages: list[MessageDict],
+    client: OpenAI,
+    tracker: TraceabilityTracker
+) -> str:
+    """
+    Rewrite query with conversation context for better evaluation.
+
+    Wraps timing tracking around query rewriting operation.
+    """
+    with tracker.time_operation("Query Rewriting", "llm_call", {"purpose": "context_resolution"}):
+        return rewrite_query_with_context(user_query, messages, client)
+
+
+def do_citation_validation(
+    final_answer: str,
+    sources: list[Any],
+    client: OpenAI,
+    tracker: TraceabilityTracker
+) -> CitationValidationResult | None:
+    """
+    Validate citations in the final answer against sources.
+
+    Returns None if validation fails (logs error but doesn't crash).
+    Wraps timing tracking around validation operation.
+    """
+    with tracker.time_operation("Citation Validation", "validation", {"purpose": "citation_quality"}):
+        try:
+            result = validate_citations(final_answer, sources, client)
+            logger.info(
+                f"Citation validation: {len(result['claims'])} claims, "
+                f"{result['total_invalid_citations']} invalid citations, "
+                f"passed={result['validation_passed']}"
+            )
+            return result
+        except Exception as e:
+            logger.error(f"Citation validation failed: {e}")
+            return None
+
+
+def do_evaluation(
+    final_answer: str,
+    tracker: TraceabilityTracker,
+    rewritten_query: str
+) -> EvaluationResult:
+    """
+    Evaluate response quality using rewritten query.
+
+    Wraps timing tracking around evaluation operation.
+    """
+    with tracker.time_operation("Response Evaluation", "llm_call", {"purpose": "quality_assessment"}):
+        return evaluate_response(final_answer, tracker, user_query=rewritten_query)
+
+
+def build_agent_result(
+    final_answer: str,
+    tracker: TraceabilityTracker,
+    evaluation: EvaluationResult,
+    citation_validation: CitationValidationResult | None
+) -> AgentResult:
+    """
+    Build final AgentResult from components.
+
+    Pure data assembly - no side effects or LLM calls.
+    """
+    result: AgentResult = {
+        "answer": final_answer,
+        "sources": tracker.sources,
+        "tool_calls": tracker.tool_calls,
+        "reasoning_steps": tracker.reasoning_steps,
+        "evaluation": evaluation,
+        "trace": tracker.get_trace()
+    }
+
+    if citation_validation:
+        result["citation_validation"] = citation_validation
+
+    return result
+
+
 def process_tool_results(
     tool_result: list[ArticleData],
     tracker: TraceabilityTracker
@@ -85,64 +166,6 @@ def should_force_final_answer(iteration: int, max_iterations: int) -> tuple[bool
     is_final_iteration = (iteration == max_iterations - 1)
     tool_choice_param = "none" if is_final_iteration else "auto"
     return is_final_iteration, tool_choice_param
-
-
-def build_final_result(
-    final_answer: str,
-    tracker: TraceabilityTracker,
-    user_query: str,
-    messages: list[MessageDict],
-    client: OpenAI
-) -> AgentResult:
-    """
-    Build final result with evaluation and rewritten query.
-
-    Args:
-        final_answer: The agent's final response
-        tracker: TraceabilityTracker with sources and timing
-        user_query: Original user query
-        messages: Conversation history
-        client: OpenAI client for query rewriting
-
-    Returns:
-        AgentResult with all metadata
-    """
-    # Rewrite query for evaluation (handles multi-turn context)
-    with tracker.time_operation("Query Rewriting", "llm_call", {"purpose": "context_resolution"}):
-        rewritten_query: str = rewrite_query_with_context(user_query, messages, client)
-
-    # Citation validation
-    citation_validation: CitationValidationResult | None = None
-    with tracker.time_operation("Citation Validation", "validation", {"purpose": "citation_quality"}):
-        try:
-            citation_validation = validate_citations(final_answer, tracker.sources, client)
-            logger.info(
-                f"Citation validation: {len(citation_validation['claims'])} claims, "
-                f"{citation_validation['total_invalid_citations']} invalid citations, "
-                f"passed={citation_validation['validation_passed']}"
-            )
-        except Exception as e:
-            logger.error(f"Citation validation failed: {e}")
-
-    # Self-evaluate the response with rewritten query
-    with tracker.time_operation("Response Evaluation", "llm_call", {"purpose": "quality_assessment"}):
-        evaluation: EvaluationResult = evaluate_response(final_answer, tracker, user_query=rewritten_query)
-
-    # Return structured result
-    result: AgentResult = {
-        "answer": final_answer,
-        "sources": tracker.sources,
-        "tool_calls": tracker.tool_calls,
-        "reasoning_steps": tracker.reasoning_steps,
-        "evaluation": evaluation,
-        "trace": tracker.get_trace()
-    }
-
-    # Add citation validation if available
-    if citation_validation:
-        result["citation_validation"] = citation_validation
-
-    return result
 
 
 def should_retry(

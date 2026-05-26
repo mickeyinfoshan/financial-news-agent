@@ -163,8 +163,43 @@ def run_agent(
         final_answer = "Agent reached maximum iterations without completing the analysis."
 
     # Build final result with evaluation
-    result = shared.build_final_result(final_answer, tracker, user_query, messages, client)
+    result = build_final_result(final_answer, tracker, user_query, messages, client)
     return result, messages
+
+
+def build_final_result(
+    final_answer: str,
+    tracker: TraceabilityTracker,
+    user_query: str,
+    messages: list[MessageDict],
+    client: OpenAI
+) -> AgentResult:
+    """
+    Build final result with evaluation and citation validation.
+
+    Uses shared operations for consistency with streaming version.
+
+    Args:
+        final_answer: The agent's final response
+        tracker: TraceabilityTracker with sources and timing
+        user_query: Original user query
+        messages: Conversation history
+        client: OpenAI client for query rewriting
+
+    Returns:
+        AgentResult with all metadata
+    """
+    # Step 1: Rewrite query
+    rewritten_query = shared.do_query_rewriting(user_query, messages, client, tracker)
+
+    # Step 2: Validate citations
+    citation_validation = shared.do_citation_validation(final_answer, tracker.sources, client, tracker)
+
+    # Step 3: Evaluate response
+    evaluation = shared.do_evaluation(final_answer, tracker, rewritten_query)
+
+    # Step 4: Build result
+    return shared.build_agent_result(final_answer, tracker, evaluation, citation_validation)
 
 
 def run_agent_with_retry(
