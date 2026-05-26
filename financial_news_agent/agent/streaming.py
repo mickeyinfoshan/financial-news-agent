@@ -51,7 +51,8 @@ def _merge_tool_call_delta(
 
 async def run_agent_stream(
     user_query: str,
-    messages: list[MessageDict]
+    messages: list[MessageDict],
+    tracker: TraceabilityTracker | None = None
 ) -> AsyncGenerator[dict[str, Any], None]:
     """
     Async streaming agent execution with real-time events.
@@ -59,6 +60,7 @@ async def run_agent_stream(
     Args:
         user_query: User's question about a company or industry
         messages: Existing conversation history (includes system message)
+        tracker: Optional tracker to reuse (for retry accumulation). If None, creates new tracker.
 
     Yields:
         Event dicts with types: agent_start, iteration_start, token, tool_call_start,
@@ -68,7 +70,8 @@ async def run_agent_stream(
         api_key=os.getenv("OPENAI_API_KEY"),
         base_url=os.getenv("OPENAI_BASE_URL")
     )
-    tracker = TraceabilityTracker()
+    if tracker is None:
+        tracker = TraceabilityTracker()
     config: ContextConfig = load_config()
 
     yield {"event": "agent_start", "data": {"query": user_query}}
@@ -248,6 +251,7 @@ async def run_agent_with_retry_stream(
         Event dicts including retry events when quality is low
     """
     config = RetryConfig()
+    tracker = TraceabilityTracker()  # Create tracker once for all attempts
     attempt = 0
     retry_history: list[dict[str, Any]] = []
 
@@ -258,7 +262,7 @@ async def run_agent_with_retry_stream(
         result: AgentResult | None = None
         updated_messages: list[MessageDict] | None = None
 
-        async for event in run_agent_stream(user_query, messages):
+        async for event in run_agent_stream(user_query, messages, tracker):
             # Capture final result
             if event["event"] == "done":
                 result = event["data"]["result"]

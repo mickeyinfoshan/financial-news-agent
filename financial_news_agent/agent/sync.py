@@ -28,7 +28,8 @@ def create_conversation() -> list[MessageDict]:
 
 def run_agent(
     user_query: str,
-    messages: list[MessageDict]
+    messages: list[MessageDict],
+    tracker: TraceabilityTracker | None = None
 ) -> tuple[AgentResult, list[MessageDict]]:
     """
     Run the financial news agent.
@@ -36,6 +37,7 @@ def run_agent(
     Args:
         user_query: User's question about a company or industry
         messages: Existing conversation history (includes system message)
+        tracker: Optional tracker to reuse (for retry accumulation). If None, creates new tracker.
 
     Returns:
         Tuple of (result dict, updated messages list)
@@ -45,7 +47,8 @@ def run_agent(
         api_key=os.getenv("OPENAI_API_KEY"),
         base_url=os.getenv("OPENAI_BASE_URL")
     )
-    tracker: TraceabilityTracker = TraceabilityTracker()
+    if tracker is None:
+        tracker = TraceabilityTracker()
     config: ContextConfig = load_config()
 
     # Append new user query to existing conversation
@@ -235,7 +238,7 @@ def run_agent_with_retry(
                 try:
                     # Run the agent
                     result: AgentResult
-                    result, messages = run_agent(user_query, messages)
+                    result, messages = run_agent(user_query, messages, tracker)
 
                     evaluation: EvaluationResult = result["evaluation"]
                     citation_validation = result.get("citation_validation")
