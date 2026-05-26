@@ -14,52 +14,73 @@ class TestCompressToolResult:
     """Tests for compress_tool_result function."""
 
     def test_compress_basic(self):
-        """Test basic field reduction (Tier 1)."""
-        articles = [
+        """Test basic field reduction (Tier 1) - keeps id, title, summary, source, url, date."""
+        sources = [
             {
+                "id": 1,
                 "title": "Tesla Stock Rises",
+                "date": "2026-05-23",
                 "source": "Reuters",
                 "url": "https://example.com/1",
-                "published_at": "2026-05-23",
-                "description": "Long description here...",
-                "content": "Full article content...",
+                "summary": "Tesla stock increased 5% following strong earnings report.",
                 "api_source": "newsapi"
             },
             {
+                "id": 2,
                 "title": "Ford Announces EV",
+                "date": "2026-05-22",
                 "source": "Bloomberg",
                 "url": "https://example.com/2",
-                "published_at": "2026-05-22",
-                "description": "Another description...",
-                "content": "More content...",
+                "summary": "Ford unveiled new electric vehicle lineup for 2027.",
                 "api_source": "finnhub"
             }
         ]
 
-        result = compress_tool_result(articles, aggressive=False)
+        result = compress_tool_result(sources, aggressive=False)
 
         assert len(result) == 2
         assert result[0] == {
             "id": 1,
             "title": "Tesla Stock Rises",
+            "summary": "Tesla stock increased 5% following strong earnings report.",
             "source": "Reuters",
             "url": "https://example.com/1",
             "published_at": "2026-05-23"
         }
-        assert "description" not in result[0]
-        assert "content" not in result[0]
+        assert result[1] == {
+            "id": 2,
+            "title": "Ford Announces EV",
+            "summary": "Ford unveiled new electric vehicle lineup for 2027.",
+            "source": "Bloomberg",
+            "url": "https://example.com/2",
+            "published_at": "2026-05-22"
+        }
+        # api_source should be removed
         assert "api_source" not in result[0]
+        assert "api_source" not in result[1]
 
     def test_compress_aggressive(self):
-        """Test aggressive compression (Tier 2: limit articles)."""
-        articles = [{"title": f"Article {i}", "source": "Test", "url": f"url{i}", "published_at": "2026-05-23"}
-                    for i in range(20)]
+        """Test aggressive compression (Tier 2: limit sources to 10)."""
+        sources = [
+            {
+                "id": i + 1,
+                "title": f"Article {i}",
+                "date": "2026-05-23",
+                "source": "Test",
+                "url": f"url{i}",
+                "summary": f"Summary {i}",
+                "api_source": "test"
+            }
+            for i in range(20)
+        ]
 
-        result = compress_tool_result(articles, aggressive=True)
+        result = compress_tool_result(sources, aggressive=True)
 
-        assert len(result) == 10  # Limited to 10 articles
+        assert len(result) == 10  # Limited to 10 sources
         assert result[0]["title"] == "Article 0"
+        assert result[0]["id"] == 1
         assert result[9]["title"] == "Article 9"
+        assert result[9]["id"] == 10
 
     def test_compress_empty_list(self):
         """Test compression with empty list."""
@@ -68,18 +89,93 @@ class TestCompressToolResult:
 
     def test_compress_missing_fields(self):
         """Test compression handles missing fields gracefully."""
-        articles = [{"title": "Test"}]  # Missing other fields
+        sources = [
+            {
+                "id": 1,
+                "title": "Test"
+                # Missing other fields
+            }
+        ]
 
-        result = compress_tool_result(articles, aggressive=False)
+        result = compress_tool_result(sources, aggressive=False)
 
         assert len(result) == 1
         assert result[0] == {
             "id": 1,
             "title": "Test",
+            "summary": "",
             "source": "",
             "url": "",
             "published_at": ""
         }
+
+    def test_compress_includes_summary(self):
+        """Test that summary field is included for LLM analysis."""
+        sources = [
+            {
+                "id": 1,
+                "title": "Tesla Earnings Beat Expectations",
+                "date": "2026-05-27",
+                "source": "Reuters",
+                "url": "https://example.com/tesla",
+                "summary": "Tesla reported Q1 earnings of $2.50 per share, beating analyst expectations of $2.20.",
+                "api_source": "newsapi"
+            }
+        ]
+
+        result = compress_tool_result(sources, aggressive=False)
+
+        assert len(result) == 1
+        assert "summary" in result[0]
+        assert result[0]["summary"] == "Tesla reported Q1 earnings of $2.50 per share, beating analyst expectations of $2.20."
+
+    def test_compress_preserves_ids(self):
+        """Test that source IDs are preserved in compression."""
+        sources = [
+            {
+                "id": 5,
+                "title": "Article 1",
+                "date": "2026-05-27",
+                "source": "Source A",
+                "url": "https://example.com/1",
+                "summary": "Summary 1",
+                "api_source": "test"
+            },
+            {
+                "id": 6,
+                "title": "Article 2",
+                "date": "2026-05-26",
+                "source": "Source B",
+                "url": "https://example.com/2",
+                "summary": "Summary 2",
+                "api_source": "test"
+            }
+        ]
+
+        result = compress_tool_result(sources, aggressive=False)
+
+        assert result[0]["id"] == 5
+        assert result[1]["id"] == 6
+
+    def test_compress_maps_date_to_published_at(self):
+        """Test that 'date' field is mapped to 'published_at' in output."""
+        sources = [
+            {
+                "id": 1,
+                "title": "Test Article",
+                "date": "2026-05-27T10:30:00",
+                "source": "Test Source",
+                "url": "https://example.com/test",
+                "summary": "Test summary",
+                "api_source": "test"
+            }
+        ]
+
+        result = compress_tool_result(sources, aggressive=False)
+
+        assert "date" not in result[0]
+        assert "published_at" in result[0]
+        assert result[0]["published_at"] == "2026-05-27T10:30:00"
 
 
 class TestSummarizeHistory:

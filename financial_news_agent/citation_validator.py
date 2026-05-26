@@ -188,7 +188,7 @@ def validate_extraction(
 
         # Check 1: Claim text exists in answer (after removing citations)
         if claim_text not in answer_without_citations:
-            errors.append(f"Claim {idx+1} not found in answer: '{claim_text[:50]}...'")
+            errors.append(f"Claim {idx+1} not found in answer: '{claim_text}'")
 
         # Check 2: All citations exist in original answer
         for cit in claim_citations:

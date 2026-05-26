@@ -21,6 +21,7 @@ class ArticleData(TypedDict):
 
 class SourceData(TypedDict):
     """Processed source data for traceability and citations."""
+    id: int
     title: str
     date: str
     source: str

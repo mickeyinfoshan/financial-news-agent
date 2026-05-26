@@ -33,40 +33,39 @@ def load_config() -> ContextConfig:
     }
 
 
-def compress_tool_result(articles: list[ArticleData], aggressive: bool = False, start_id: int = 1) -> list[dict[str, Any]]:
-    """Compress tool result articles to save tokens.
+def compress_tool_result(sources: list[Any], aggressive: bool = False) -> list[dict[str, Any]]:
+    """Compress sources to save tokens.
 
     Two-tier compression strategy:
-    - Tier 1 (always): Remove description/content fields - LLM only needs metadata
-    - Tier 2 (aggressive): Limit to 10 articles when approaching token limits
+    - Tier 1 (always): Keep essential fields including summary for LLM analysis
+    - Tier 2 (aggressive): Limit to 10 sources when approaching token limits
 
     Args:
-        articles: List of article dictionaries from news search
-        aggressive: If True, apply aggressive compression (limit articles)
-        start_id: Starting ID for numbering (default: 1). Use len(tracker.sources) + 1
-                  for continuous numbering across multiple tool calls.
+        sources: List of SourceData dictionaries with IDs
+        aggressive: If True, apply aggressive compression (limit sources)
 
     Returns:
-        list: Compressed articles with reduced fields and source numbering
+        list: Compressed sources with reduced fields
     """
-    if not articles:
+    if not sources:
         return []
 
-    # Tier 2: Limit number of articles if aggressive mode
-    compressed_articles: list[ArticleData] = articles
+    # Tier 2: Limit number of sources if aggressive mode
+    compressed_sources: list[Any] = sources
     if aggressive:
-        compressed_articles = articles[:10]
-        logger.info(f"Aggressive compression: limited to {len(compressed_articles)} articles")
+        compressed_sources = sources[:10]
+        logger.info(f"Aggressive compression: limited to {len(compressed_sources)} sources")
 
-    # Tier 1: Keep only essential fields and add source numbering
+    # Tier 1: Keep essential fields including summary for accurate analysis
     compressed: list[dict[str, Any]] = []
-    for idx, article in enumerate(compressed_articles, start_id):
+    for source in compressed_sources:
         compressed.append({
-            "id": idx,
-            "title": article.get("title", ""),
-            "source": article.get("source", ""),
-            "url": article.get("url", ""),
-            "published_at": article.get("published_at", "")
+            "id": source["id"],
+            "title": source.get("title", ""),
+            "summary": source.get("summary", ""),  # Include summary for LLM to understand content
+            "source": source.get("source", ""),
+            "url": source.get("url", ""),
+            "published_at": source.get("date", "")
         })
 
     return compressed
