@@ -37,7 +37,7 @@ def compress_tool_result(sources: list[Any], aggressive: bool = False) -> list[d
     """Compress sources to save tokens.
 
     Two-tier compression strategy:
-    - Tier 1 (always): Remove description/content fields - LLM only needs metadata
+    - Tier 1 (always): Keep essential fields including summary for LLM analysis
     - Tier 2 (aggressive): Limit to 10 sources when approaching token limits
 
     Args:
@@ -56,12 +56,13 @@ def compress_tool_result(sources: list[Any], aggressive: bool = False) -> list[d
         compressed_sources = sources[:10]
         logger.info(f"Aggressive compression: limited to {len(compressed_sources)} sources")
 
-    # Tier 1: Keep only essential fields, use existing IDs from SourceData
+    # Tier 1: Keep essential fields including summary for accurate analysis
     compressed: list[dict[str, Any]] = []
     for source in compressed_sources:
         compressed.append({
             "id": source["id"],
             "title": source.get("title", ""),
+            "summary": source.get("summary", ""),  # Include summary for LLM to understand content
             "source": source.get("source", ""),
             "url": source.get("url", ""),
             "published_at": source.get("date", "")
