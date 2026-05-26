@@ -103,6 +103,26 @@ export type HealthResponse = {
   timestamp: string;
 }
 
+export type ClaimSourceValidation = {
+  supported: boolean;
+  confidence: 'high' | 'medium' | 'low';
+  explanation: string;
+}
+
+export type ClaimData = {
+  claim: string;
+  citations: number[];
+  invalid_citations: number[];
+  validation_result?: ClaimSourceValidation;
+}
+
+export type CitationValidationResult = {
+  claims: ClaimData[];
+  extraction_attempts: number;
+  total_invalid_citations: number;
+  validation_passed: boolean;
+}
+
 export type StreamEventType =
   | 'agent_start'
   | 'iteration_start'
