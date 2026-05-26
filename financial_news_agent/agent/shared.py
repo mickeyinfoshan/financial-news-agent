@@ -102,14 +102,20 @@ def process_tool_results(
     tracker: TraceabilityTracker
 ) -> None:
     """
-    Add articles from tool result to tracker.sources.
+    Add articles from tool result to tracker.sources with IDs.
 
     Args:
         tool_result: Tool execution result containing articles
         tracker: TraceabilityTracker to add sources to
     """
-    for article in tool_result:
+    # Calculate starting ID ONCE before the loop to ensure correct sequential numbering
+    # Example: if tracker has 5 sources, start_id=6, then articles get IDs 6,7,8,...
+    start_id = len(tracker.sources) + 1
+
+    for idx, article in enumerate(tool_result):
+        source_id = start_id + idx  # Sequential ID assignment
         tracker.add_source({
+            "id": source_id,
             "title": article.get("title", ""),
             "date": article.get("published_at", ""),
             "source": article.get("source", ""),
@@ -123,8 +129,7 @@ def compress_and_build_tool_message(
     tool_result: list[ArticleData],
     tool_call_id: str,
     total_tokens: int,
-    config: ContextConfig,
-    start_id: int
+    config: ContextConfig
 ) -> MessageDict:
     """
     Compress tool results based on token usage and build tool response message.
@@ -134,7 +139,6 @@ def compress_and_build_tool_message(
         tool_call_id: ID of the tool call
         total_tokens: Current total token count
         config: Context configuration with thresholds
-        start_id: Starting ID for source numbering
 
     Returns:
         Tool response message dict
@@ -142,8 +146,7 @@ def compress_and_build_tool_message(
     aggressive: bool = total_tokens > config["warning_threshold"]
     compressed_articles: list[dict[str, Any]] = compress_tool_result(
         tool_result,
-        aggressive=aggressive,
-        start_id=start_id
+        aggressive=aggressive
     )
 
     return {

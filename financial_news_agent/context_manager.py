@@ -33,7 +33,7 @@ def load_config() -> ContextConfig:
     }
 
 
-def compress_tool_result(articles: list[ArticleData], aggressive: bool = False, start_id: int = 1) -> list[dict[str, Any]]:
+def compress_tool_result(articles: list[ArticleData], aggressive: bool = False) -> list[dict[str, Any]]:
     """Compress tool result articles to save tokens.
 
     Two-tier compression strategy:
@@ -43,8 +43,6 @@ def compress_tool_result(articles: list[ArticleData], aggressive: bool = False, 
     Args:
         articles: List of article dictionaries from news search
         aggressive: If True, apply aggressive compression (limit articles)
-        start_id: Starting ID for numbering (default: 1). Use len(tracker.sources) + 1
-                  for continuous numbering across multiple tool calls.
 
     Returns:
         list: Compressed articles with reduced fields and source numbering
@@ -58,11 +56,11 @@ def compress_tool_result(articles: list[ArticleData], aggressive: bool = False, 
         compressed_articles = articles[:10]
         logger.info(f"Aggressive compression: limited to {len(compressed_articles)} articles")
 
-    # Tier 1: Keep only essential fields and add source numbering
+    # Tier 1: Keep only essential fields, use existing IDs from ArticleData
     compressed: list[dict[str, Any]] = []
-    for idx, article in enumerate(compressed_articles, start_id):
+    for article in compressed_articles:
         compressed.append({
-            "id": idx,
+            "id": article.get("id"),
             "title": article.get("title", ""),
             "source": article.get("source", ""),
             "url": article.get("url", ""),
