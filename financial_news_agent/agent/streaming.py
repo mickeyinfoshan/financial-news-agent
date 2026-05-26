@@ -3,6 +3,7 @@
 import os
 import json
 import logging
+import asyncio
 from typing import Any, AsyncGenerator
 from openai import AsyncOpenAI, OpenAI
 from ..types import AgentResult, MessageDict, EvaluationResult, ContextConfig, ArticleData
@@ -157,8 +158,10 @@ async def run_agent_stream(
                         }
                     }
 
-                    # Execute tool
-                    tool_result: list[ArticleData] = execute_tool(tool_name, tool_args, tracker)
+                    # Execute tool in thread pool to avoid blocking the async generator
+                    tool_result: list[ArticleData] = await asyncio.to_thread(
+                        execute_tool, tool_name, tool_args, tracker
+                    )
                     tracker.add_tool_call(tool_name, tool_args, tool_result)
 
                     # Calculate start_id before adding sources - ensures continuous numbering across tool calls
@@ -210,16 +213,24 @@ async def run_agent_stream(
         base_url=os.getenv("OPENAI_BASE_URL")
     )
 
-    # Step 1: Rewrite query
-    rewritten_query = shared.do_query_rewriting(user_query, messages, sync_client, tracker)
+    # Step 1: Rewrite query (run in thread pool)
+    rewritten_query = await asyncio.to_thread(
+        shared.do_query_rewriting, user_query, messages, sync_client, tracker
+    )
 
     # Step 2: Validate citations
-    citation_validation = shared.do_citation_validation(final_answer, tracker.sources, sync_client, tracker)
+    yield {"event": "citation_validation_start", "data": {}}
+    citation_validation = await asyncio.to_thread(
+        shared.do_citation_validation, final_answer, tracker.sources, sync_client, tracker
+    )
     if citation_validation:
         yield {"event": "citation_validation", "data": citation_validation}
 
     # Step 3: Evaluate response
-    evaluation = shared.do_evaluation(final_answer, tracker, rewritten_query, citation_validation)
+    yield {"event": "evaluation_start", "data": {}}
+    evaluation = await asyncio.to_thread(
+        shared.do_evaluation, final_answer, tracker, rewritten_query, citation_validation
+    )
     yield {"event": "evaluation", "data": evaluation}
 
     # Step 4: Emit timing summary
