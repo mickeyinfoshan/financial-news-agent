@@ -30,6 +30,7 @@ class CreateSessionWithResultResponse(BaseModel):
     reasoning_steps: list[str]
     trace: dict[str, Any]
     retry_history: list[dict[str, Any]] | None = None
+    citation_validation: dict[str, Any] | None = None
 
 
 class QueryRequest(BaseModel):
@@ -46,6 +47,7 @@ class QueryResponse(BaseModel):
     reasoning_steps: list[str]
     trace: dict[str, Any]
     retry_history: list[dict[str, Any]] | None = None
+    citation_validation: dict[str, Any] | None = None
 
 
 class SessionMetadata(BaseModel):

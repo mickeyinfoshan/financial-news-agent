@@ -75,7 +75,8 @@ async def create_session(request: CreateSessionRequest) -> CreateSessionResponse
             tool_calls=result["tool_calls"],  # type: ignore[arg-type]
             reasoning_steps=result["reasoning_steps"],
             trace=result["trace"],  # type: ignore[arg-type]
-            retry_history=result.get("retry_history")  # type: ignore[arg-type]
+            retry_history=result.get("retry_history"),  # type: ignore[arg-type]
+            citation_validation=result.get("citation_validation")  # type: ignore[arg-type]
         )
 
     except Exception as e:
@@ -109,7 +110,8 @@ async def query_session(session_id: str, request: QueryRequest) -> QueryResponse
             tool_calls=result["tool_calls"],  # type: ignore[arg-type]
             reasoning_steps=result["reasoning_steps"],
             trace=result["trace"],  # type: ignore[arg-type]
-            retry_history=result.get("retry_history")  # type: ignore[arg-type]
+            retry_history=result.get("retry_history"),  # type: ignore[arg-type]
+            citation_validation=result.get("citation_validation")  # type: ignore[arg-type]
         )
 
     except HTTPException:
