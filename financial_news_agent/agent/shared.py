@@ -59,7 +59,8 @@ def do_citation_validation(
 def do_evaluation(
     final_answer: str,
     tracker: TraceabilityTracker,
-    rewritten_query: str
+    rewritten_query: str,
+    citation_validation: CitationValidationResult | None = None
 ) -> EvaluationResult:
     """
     Evaluate response quality using rewritten query.
@@ -67,7 +68,7 @@ def do_evaluation(
     Wraps timing tracking around evaluation operation.
     """
     with tracker.time_operation("Response Evaluation", "llm_call", {"purpose": "quality_assessment"}):
-        return evaluate_response(final_answer, tracker, user_query=rewritten_query)
+        return evaluate_response(final_answer, tracker, user_query=rewritten_query, citation_validation=citation_validation)
 
 
 def build_agent_result(

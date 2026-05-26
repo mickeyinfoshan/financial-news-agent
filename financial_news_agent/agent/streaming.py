@@ -212,7 +212,7 @@ async def run_agent_stream(
         yield {"event": "citation_validation", "data": citation_validation}
 
     # Step 3: Evaluate response
-    evaluation = shared.do_evaluation(final_answer, tracker, rewritten_query)
+    evaluation = shared.do_evaluation(final_answer, tracker, rewritten_query, citation_validation)
     yield {"event": "evaluation", "data": evaluation}
 
     # Step 4: Emit timing summary

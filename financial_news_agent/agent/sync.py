@@ -196,7 +196,7 @@ def build_final_result(
     citation_validation = shared.do_citation_validation(final_answer, tracker.sources, client, tracker)
 
     # Step 3: Evaluate response
-    evaluation = shared.do_evaluation(final_answer, tracker, rewritten_query)
+    evaluation = shared.do_evaluation(final_answer, tracker, rewritten_query, citation_validation)
 
     # Step 4: Build result
     return shared.build_agent_result(final_answer, tracker, evaluation, citation_validation)
