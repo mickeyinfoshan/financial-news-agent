@@ -24,14 +24,12 @@ class RetryConfig:
         # 1. Invalid citations (out of range)
         # 2. More than 3 unsupported claims
         if citation_validation and not citation_validation.get("validation_passed", True):
+            # Check for invalid citations using total_invalid_citations field
+            total_invalid = citation_validation.get("total_invalid_citations", 0)
+            has_invalid_citations = total_invalid > 0
+
+            # Count unsupported claims from claims array
             claims = citation_validation.get("claims", [])
-
-            # Check for invalid citations (out of range)
-            has_invalid_citations = any(
-                c.get("invalid_citations", []) for c in claims
-            )
-
-            # Count unsupported claims
             unsupported_count = sum(
                 1 for c in claims
                 if c.get("validation_result", {}).get("supported") == False
