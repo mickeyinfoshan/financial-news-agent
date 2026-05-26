@@ -1,4 +1,4 @@
-import { Source, Evaluation, RetryAttempt, ToolCall } from './api';
+import { Source, Evaluation, RetryAttempt, ToolCall, CitationValidationResult } from './api';
 
 export interface Message {
   id: string;
@@ -8,6 +8,7 @@ export interface Message {
   sources?: Source[];
   evaluation?: Evaluation;
   retry_history?: RetryAttempt[];
+  citation_validation?: CitationValidationResult;
   metadata?: {
     tool_calls?: ToolCall[];
     reasoning_steps?: string[];

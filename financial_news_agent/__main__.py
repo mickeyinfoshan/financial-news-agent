@@ -2,7 +2,100 @@
 
 from .agent import run_agent_with_retry, create_conversation
 from .utils import extract_citations
-from .types import AgentResult, MessageDict, EvaluationResult, RetryAttempt
+from .types import AgentResult, MessageDict, EvaluationResult, RetryAttempt, CitationValidationResult
+
+
+def truncate_text(text: str, max_length: int = 80) -> str:
+    """Truncate text to max_length characters, adding '...' if truncated."""
+    if not text:
+        return ""
+    if len(text) <= max_length:
+        return text
+    return text[:max_length - 3] + "..."
+
+
+def display_citation_validation(citation_validation: CitationValidationResult) -> None:
+    """Display citation validation results in the CLI."""
+    print("=" * 60)
+    print("CITATION VALIDATION")
+    print("=" * 60)
+
+    validation_passed = citation_validation.get("validation_passed", False)
+    claims = citation_validation.get("claims", [])
+    total_invalid = citation_validation.get("total_invalid_citations", 0)
+    extraction_attempts = citation_validation.get("extraction_attempts", 1)
+
+    # Display status
+    status_symbol = "✓" if validation_passed else "✗"
+    status_text = "PASSED" if validation_passed else "FAILED"
+    print(f"Status: {status_symbol} {status_text}")
+
+    # Handle edge case: no claims extracted
+    if not claims:
+        print("No claims could be extracted from the answer.")
+        if extraction_attempts > 1:
+            print(f"Extraction Attempts: {extraction_attempts}")
+        print()
+        return
+
+    # Display summary statistics
+    print(f"Claims Validated: {len(claims)} | Invalid Citations: {total_invalid} | Extraction Attempts: {extraction_attempts}")
+
+    # If validation passed, show compact format
+    if validation_passed:
+        print()
+        return
+
+    # If validation failed, show detailed issues
+    print()
+    print("ISSUES FOUND:")
+    print()
+
+    # Group issues by type
+    invalid_citation_claims = []
+    unsupported_claims = []
+
+    for claim_data in claims:
+        claim_text = claim_data.get("claim", "")
+        citations = claim_data.get("citations", [])
+        invalid_citations = claim_data.get("invalid_citations", [])
+        validation_result = claim_data.get("validation_result")
+
+        # Check for invalid citations (out of range)
+        if invalid_citations:
+            invalid_citation_claims.append({
+                "claim": claim_text,
+                "citations": citations,
+                "invalid": invalid_citations
+            })
+
+        # Check for unsupported claims
+        if validation_result and not validation_result.get("supported", True):
+            unsupported_claims.append({
+                "claim": claim_text,
+                "citations": citations,
+                "confidence": validation_result.get("confidence", "unknown"),
+                "explanation": validation_result.get("explanation", "No explanation provided")
+            })
+
+    # Display invalid citations
+    if invalid_citation_claims:
+        print("[Invalid Citations - Out of Range]")
+        for item in invalid_citation_claims:
+            print(f"  Claim: \"{truncate_text(item['claim'])}\"")
+            print(f"  Citations Used: {item['citations']}")
+            print(f"  Invalid: {item['invalid']}")
+            print()
+
+    # Display unsupported claims
+    if unsupported_claims:
+        print("[Unsupported Claims]")
+        for item in unsupported_claims:
+            print(f"  Claim: \"{truncate_text(item['claim'])}\"")
+            print(f"  Citations Used: {item['citations']}")
+            print(f"  Confidence: {item['confidence']}")
+            print(f"  Reason: {truncate_text(item['explanation'], max_length=120)}")
+            print()
 
 
 def main() -> None:
@@ -71,6 +164,10 @@ def main() -> None:
                     print(f"    Source: {source['source']} | Date: {source['date']}")
                     print(f"    URL: {source['url']}")
                     print()
+
+            # Display citation validation if available
+            if "citation_validation" in result and result["citation_validation"]:
+                display_citation_validation(result["citation_validation"])
 
             print("=" * 60)
             print("EVALUATION")

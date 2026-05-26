@@ -38,6 +38,7 @@ export const useMessageStore = create<MessageState>((set) => ({
           ...(msg.sources && { sources: msg.sources }),
           ...(msg.evaluation && { evaluation: msg.evaluation }),
           ...(msg.retry_history && { retry_history: msg.retry_history }),
+          ...(msg.citation_validation && { citation_validation: msg.citation_validation }),
           ...((msg.tool_calls || msg.reasoning_steps || msg.trace) && {
             metadata: {
               tool_calls: msg.tool_calls,

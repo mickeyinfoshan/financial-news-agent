@@ -94,6 +94,7 @@ export function useStreamingQuery() {
           sources: finalResult.sources,
           evaluation: finalResult.evaluation,
           retry_history: finalResult.retry_history,
+          citation_validation: finalResult.citation_validation,
           metadata: {
             tool_calls: finalResult.tool_calls,
             reasoning_steps: finalResult.reasoning_steps,

@@ -1,7 +1,7 @@
 """Retry/fix mechanism for low-quality responses."""
 
 import os
-from .types import EvaluationResult, SourceData
+from .types import EvaluationResult, SourceData, CitationValidationResult
 
 
 class RetryConfig:
@@ -15,10 +15,14 @@ class RetryConfig:
         self.strategy: str = os.getenv("RETRY_STRATEGY", "auto")
         self.show_attempts: bool = os.getenv("RETRY_SHOW_ATTEMPTS", "true").lower() == "true"
 
-    def should_retry(self, evaluation: EvaluationResult, attempt: int) -> bool:
+    def should_retry(self, evaluation: EvaluationResult, attempt: int, citation_validation: CitationValidationResult | None = None) -> bool:
         """Check if retry should be attempted."""
         if not self.enabled or attempt >= self.max_attempts:
             return False
+
+        # Force retry if citation validation failed
+        if citation_validation and not citation_validation.get("validation_passed", True):
+            return True
 
         overall: float = evaluation.get("overall", 0)
         accuracy: int = evaluation.get("accuracy", 0)
@@ -29,7 +33,8 @@ class RetryConfig:
 def decide_retry_strategy(
     evaluation: EvaluationResult,
     sources: list['SourceData'],
-    config: RetryConfig
+    config: RetryConfig,
+    citation_validation: CitationValidationResult | None = None
 ) -> str:
     """
     Decide retry strategy based on evaluation scores.
@@ -43,6 +48,7 @@ def decide_retry_strategy(
         evaluation: Evaluation dict with scores
         sources: List of sources from tracker
         config: RetryConfig instance
+        citation_validation: Optional citation validation result
 
     Returns:
         "fix", "redo", or "none"
@@ -57,8 +63,14 @@ def decide_retry_strategy(
     relevance: int = evaluation.get("relevance", 0)
 
     # Check if retry needed
-    if not config.should_retry(evaluation, 0):
+    if not config.should_retry(evaluation, 0, citation_validation):
         return "none"
+
+    # Citation validation failure → FIX strategy
+    # Invalid citations mean the answer structure is wrong, but sources are likely correct
+    # FIX will improve the answer using existing sources with better citation accuracy
+    if citation_validation and not citation_validation.get("validation_passed", True):
+        return "fix"
 
     # REDO: Major issues requiring fresh search
     # - Low accuracy: wrong information, needs better sources
@@ -73,13 +85,14 @@ def decide_retry_strategy(
     return "fix"
 
 
-def build_fix_prompt(evaluation: EvaluationResult, original_query: str) -> str:
+def build_fix_prompt(evaluation: EvaluationResult, original_query: str, citation_validation: CitationValidationResult | None = None) -> str:
     """
     Build a prompt to fix the existing answer.
 
     Args:
         evaluation: Evaluation dict with scores and feedback
         original_query: The user's original query
+        citation_validation: Optional citation validation result
 
     Returns:
         Fix prompt string
@@ -95,6 +108,61 @@ def build_fix_prompt(evaluation: EvaluationResult, original_query: str) -> str:
     # Identify weak areas
     weak_areas: list[str] = [k for k, v in scores.items() if v < 6.0]
 
+    # Build citation-specific guidance with claim-level details
+    citation_guidance = ""
+    if citation_validation and not citation_validation.get("validation_passed", True):
+        claims = citation_validation.get("claims", [])
+
+        # Collect claims with invalid citations (out of range)
+        invalid_citation_claims = [
+            c for c in claims
+            if c.get("invalid_citations", [])
+        ]
+
+        # Collect claims that are unsupported by their sources
+        unsupported_claims = [
+            c for c in claims
+            if c.get("validation_result", {}).get("supported") == False
+        ]
+
+        citation_issues = []
+
+        # Detail invalid citation issues
+        if invalid_citation_claims:
+            citation_issues.append("INVALID CITATIONS (out of range):")
+            for claim_data in invalid_citation_claims:
+                claim_text = claim_data.get("claim", "")
+                invalid_cites = claim_data.get("invalid_citations", [])
+                all_cites = claim_data.get("citations", [])
+                citation_issues.append(
+                    f"  - Claim: \"{claim_text}\"\n"
+                    f"    Used citations: {all_cites}\n"
+                    f"    Invalid (out of range): {invalid_cites}"
+                )
+
+        # Detail unsupported claim issues
+        if unsupported_claims:
+            citation_issues.append("\nUNSUPPORTED CLAIMS (sources don't support the claim):")
+            for claim_data in unsupported_claims:
+                claim_text = claim_data.get("claim", "")
+                cites = claim_data.get("citations", [])
+                validation = claim_data.get("validation_result", {})
+                explanation = validation.get("explanation", "No explanation")
+                citation_issues.append(
+                    f"  - Claim: \"{claim_text}\"\n"
+                    f"    Citations used: {cites}\n"
+                    f"    Why unsupported: {explanation}"
+                )
+
+        if citation_issues:
+            citation_guidance = "\n" + "\n".join(citation_issues) + """
+
+CRITICAL: You MUST fix all citation issues above:
+1. Remove or replace invalid citation numbers that are out of range
+2. Only cite sources that actually support your claims
+3. If a claim is unsupported, either remove it or find supporting sources
+"""
+
     prompt = f"""Your previous answer needs improvement. Here's the evaluation:
 
 SCORES:
@@ -104,7 +172,7 @@ SCORES:
 - Reasonableness: {scores['reasonableness']}/10
 
 FEEDBACK: {feedback}
-
+{citation_guidance}
 WEAK AREAS: {', '.join(weak_areas) if weak_areas else 'overall quality'}
 
 Please improve your answer by:

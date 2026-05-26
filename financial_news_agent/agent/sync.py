@@ -163,8 +163,43 @@ def run_agent(
         final_answer = "Agent reached maximum iterations without completing the analysis."
 
     # Build final result with evaluation
-    result = shared.build_final_result(final_answer, tracker, user_query, messages, client)
+    result = build_final_result(final_answer, tracker, user_query, messages, client)
     return result, messages
+
+
+def build_final_result(
+    final_answer: str,
+    tracker: TraceabilityTracker,
+    user_query: str,
+    messages: list[MessageDict],
+    client: OpenAI
+) -> AgentResult:
+    """
+    Build final result with evaluation and citation validation.
+
+    Uses shared operations for consistency with streaming version.
+
+    Args:
+        final_answer: The agent's final response
+        tracker: TraceabilityTracker with sources and timing
+        user_query: Original user query
+        messages: Conversation history
+        client: OpenAI client for query rewriting
+
+    Returns:
+        AgentResult with all metadata
+    """
+    # Step 1: Rewrite query
+    rewritten_query = shared.do_query_rewriting(user_query, messages, client, tracker)
+
+    # Step 2: Validate citations
+    citation_validation = shared.do_citation_validation(final_answer, tracker.sources, client, tracker)
+
+    # Step 3: Evaluate response
+    evaluation = shared.do_evaluation(final_answer, tracker, rewritten_query, citation_validation)
+
+    # Step 4: Build result
+    return shared.build_agent_result(final_answer, tracker, evaluation, citation_validation)
 
 
 def run_agent_with_retry(
@@ -203,6 +238,7 @@ def run_agent_with_retry(
                     result, messages = run_agent(user_query, messages)
 
                     evaluation: EvaluationResult = result["evaluation"]
+                    citation_validation = result.get("citation_validation")
 
                     # Store attempt if configured
                     if config.show_attempts and attempt > 0:
@@ -213,7 +249,7 @@ def run_agent_with_retry(
                         })
 
                     # Check if retry needed
-                    if not shared.should_retry(evaluation, attempt, config):
+                    if not shared.should_retry(evaluation, attempt, config, citation_validation):
                         # Success or max attempts reached
                         if config.show_attempts and retry_history:
                             result["retry_history"] = retry_history  # type: ignore[typeddict-item]
@@ -229,7 +265,7 @@ def run_agent_with_retry(
                     previous_messages = messages.copy()
 
                     # Decide strategy
-                    strategy: str = shared.decide_retry_strategy_wrapper(evaluation, result["sources"], config)
+                    strategy: str = shared.decide_retry_strategy_wrapper(evaluation, result["sources"], config, citation_validation)
 
                     if strategy == "none":
                         if config.show_attempts and retry_history:
@@ -247,7 +283,7 @@ def run_agent_with_retry(
                     # Execute retry strategy
                     if strategy == "fix":
                         # FIX: Continue conversation with improvement prompt
-                        fix_prompt: str = build_fix_prompt(evaluation, user_query)
+                        fix_prompt: str = build_fix_prompt(evaluation, user_query, citation_validation)
                         messages.append({"role": "user", "content": fix_prompt})
 
                     elif strategy == "redo":

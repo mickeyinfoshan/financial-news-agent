@@ -7,6 +7,7 @@ import ChatContainer from '@/components/chat/ChatContainer';
 import SourcesPanel from '@/components/sources/SourcesPanel';
 import EvaluationPanel from '@/components/evaluation/EvaluationPanel';
 import TerminalPanel from '@/components/common/TerminalPanel';
+import { CitationValidationPanel } from '@/components/citation/CitationValidationPanel';
 
 export default function AppLayout() {
   const { currentSessionId } = useSessionStore();
@@ -118,6 +119,17 @@ export default function AppLayout() {
                   </h3>
                   <EvaluationPanel message={selectedMessage} />
                 </section>
+
+                {/* Citation Validation Section */}
+                {selectedMessage.citation_validation && (
+                  <section className="insight-section">
+                    <h3 className="section-label">
+                      <span className="label-icon">✓</span>
+                      Citation Validation
+                    </h3>
+                    <CitationValidationPanel message={selectedMessage} />
+                  </section>
+                )}
               </>
             ) : (
               <div className="empty-state">

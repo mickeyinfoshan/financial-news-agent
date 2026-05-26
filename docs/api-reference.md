@@ -35,7 +35,8 @@ print(f"Score: {result['evaluation']['overall']}/10")
     "tool_calls": List[dict],   # Tools invoked during execution
     "reasoning_steps": List[str], # LLM reasoning outputs
     "evaluation": dict,         # Self-evaluation scores
-    "trace": dict              # Complete traceability data
+    "trace": dict,              # Complete traceability data
+    "citation_validation": dict # Citation quality validation (optional)
 }
 ```
 
@@ -151,6 +152,69 @@ Complete traceability data combining all tracking information.
     "sources": List[dict],        # Same as top-level sources
     "tool_calls": List[dict],     # Same as top-level tool_calls
     "reasoning_steps": List[str]  # Same as top-level reasoning_steps
+}
+```
+
+#### `citation_validation` (dict, optional)
+Citation quality validation results. Validates that claims in the answer are properly supported by cited sources.
+
+**Structure:**
+```python
+{
+    "claims": List[dict],           # Extracted claims with citations
+    "extraction_attempts": int,     # Number of extraction retries
+    "total_invalid_citations": int, # Count of out-of-range citations
+    "validation_passed": bool       # Overall validation status
+}
+```
+
+**Claim Structure:**
+```python
+{
+    "claim": str,                   # Claim text (without citation markers)
+    "citations": List[int],         # Citation numbers [1, 2, 3]
+    "invalid_citations": List[int], # Citations out of valid range
+    "validation_result": {          # LLM validation (optional)
+        "supported": bool,          # Sources support the claim
+        "confidence": str,          # "high", "medium", or "low"
+        "explanation": str          # Brief explanation
+    }
+}
+```
+
+**Confidence Levels:**
+- **"high"**: Claim directly stated in sources (word-for-word or clear equivalence)
+- **"medium"**: Reasonable inference well-supported by sources
+- **"low"**: Weak support, significant inference required, or tangential relation
+
+**Example:**
+```python
+{
+    "claims": [
+        {
+            "claim": "Tesla reported record Q1 deliveries",
+            "citations": [1],
+            "invalid_citations": [],
+            "validation_result": {
+                "supported": True,
+                "confidence": "high",
+                "explanation": "Source [1] directly states this fact"
+            }
+        },
+        {
+            "claim": "Competition from Chinese manufacturers increased",
+            "citations": [2, 3],
+            "invalid_citations": [],
+            "validation_result": {
+                "supported": True,
+                "confidence": "medium",
+                "explanation": "Sources [2][3] discuss competitive pressure"
+            }
+        }
+    ],
+    "extraction_attempts": 1,
+    "total_invalid_citations": 0,
+    "validation_passed": True
 }
 ```
 

@@ -84,6 +84,29 @@ class TimingSummary(TypedDict):
     hierarchy: TimingNodeDict | None
 
 
+class ClaimData(TypedDict):
+    """Single claim with its citations and validation status."""
+    claim: str
+    citations: list[int]
+    invalid_citations: list[int]
+    validation_result: NotRequired['ClaimSourceValidation']
+
+
+class ClaimSourceValidation(TypedDict):
+    """LLM validation result for claim-source relationship."""
+    supported: bool
+    confidence: str
+    explanation: str
+
+
+class CitationValidationResult(TypedDict):
+    """Complete citation validation output."""
+    claims: list[ClaimData]
+    extraction_attempts: int
+    total_invalid_citations: int
+    validation_passed: bool
+
+
 class TraceData(TypedDict):
     """Complete trace data with sources, tool calls, and reasoning."""
     sources: list[SourceData]
@@ -101,6 +124,7 @@ class AgentResult(TypedDict):
     evaluation: EvaluationResult
     trace: TraceData
     retry_history: NotRequired[list[RetryAttempt]]
+    citation_validation: NotRequired[CitationValidationResult]
 
 
 class ContextConfig(TypedDict):
@@ -126,6 +150,7 @@ class MessageDict(TypedDict, total=False):
     reasoning_steps: list[str]
     trace: TraceData
     retry_history: list[RetryAttempt]
+    citation_validation: CitationValidationResult
 
 
 # API Module Types

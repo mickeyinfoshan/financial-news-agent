@@ -117,6 +117,9 @@ class SessionManager:
                     retry_hist = result.get("retry_history")
                     if retry_hist is not None:
                         messages[i]["retry_history"] = retry_hist
+                    citation_val = result.get("citation_validation")
+                    if citation_val is not None:
+                        messages[i]["citation_validation"] = citation_val
                     break
 
         session["messages"] = messages

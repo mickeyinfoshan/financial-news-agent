@@ -4,14 +4,97 @@ import json
 import logging
 from typing import Any
 from openai import OpenAI
-from ..types import AgentResult, MessageDict, EvaluationResult, ArticleData, ContextConfig
+from ..types import AgentResult, MessageDict, EvaluationResult, ArticleData, ContextConfig, CitationValidationResult
 from ..traceability import TraceabilityTracker
 from ..evaluator import evaluate_response
 from ..context_manager import compress_tool_result
 from ..retry_manager import RetryConfig, decide_retry_strategy
+from ..citation_validator import validate_citations
 from .query_rewriter import rewrite_query_with_context
 
 logger = logging.getLogger(__name__)
+
+
+def do_query_rewriting(
+    user_query: str,
+    messages: list[MessageDict],
+    client: OpenAI,
+    tracker: TraceabilityTracker
+) -> str:
+    """
+    Rewrite query with conversation context for better evaluation.
+
+    Wraps timing tracking around query rewriting operation.
+    """
+    with tracker.time_operation("Query Rewriting", "llm_call", {"purpose": "context_resolution"}):
+        return rewrite_query_with_context(user_query, messages, client)
+
+
+def do_citation_validation(
+    final_answer: str,
+    sources: list[Any],
+    client: OpenAI,
+    tracker: TraceabilityTracker
+) -> CitationValidationResult | None:
+    """
+    Validate citations in the final answer against sources.
+
+    Returns None if validation fails (logs error but doesn't crash).
+    Wraps timing tracking around validation operation.
+    """
+    with tracker.time_operation("Citation Validation", "validation", {"purpose": "citation_quality"}):
+        try:
+            result = validate_citations(final_answer, sources, client)
+            logger.info(
+                f"Citation validation: {len(result['claims'])} claims, "
+                f"{result['total_invalid_citations']} invalid citations, "
+                f"passed={result['validation_passed']}"
+            )
+            return result
+        except Exception as e:
+            logger.error(f"Citation validation failed: {e}")
+            return None
+
+
+def do_evaluation(
+    final_answer: str,
+    tracker: TraceabilityTracker,
+    rewritten_query: str,
+    citation_validation: CitationValidationResult | None = None
+) -> EvaluationResult:
+    """
+    Evaluate response quality using rewritten query.
+
+    Wraps timing tracking around evaluation operation.
+    """
+    with tracker.time_operation("Response Evaluation", "llm_call", {"purpose": "quality_assessment"}):
+        return evaluate_response(final_answer, tracker, user_query=rewritten_query, citation_validation=citation_validation)
+
+
+def build_agent_result(
+    final_answer: str,
+    tracker: TraceabilityTracker,
+    evaluation: EvaluationResult,
+    citation_validation: CitationValidationResult | None
+) -> AgentResult:
+    """
+    Build final AgentResult from components.
+
+    Pure data assembly - no side effects or LLM calls.
+    """
+    result: AgentResult = {
+        "answer": final_answer,
+        "sources": tracker.sources,
+        "tool_calls": tracker.tool_calls,
+        "reasoning_steps": tracker.reasoning_steps,
+        "evaluation": evaluation,
+        "trace": tracker.get_trace()
+    }
+
+    if citation_validation:
+        result["citation_validation"] = citation_validation
+
+    return result
 
 
 def process_tool_results(
@@ -86,50 +169,11 @@ def should_force_final_answer(iteration: int, max_iterations: int) -> tuple[bool
     return is_final_iteration, tool_choice_param
 
 
-def build_final_result(
-    final_answer: str,
-    tracker: TraceabilityTracker,
-    user_query: str,
-    messages: list[MessageDict],
-    client: OpenAI
-) -> AgentResult:
-    """
-    Build final result with evaluation and rewritten query.
-
-    Args:
-        final_answer: The agent's final response
-        tracker: TraceabilityTracker with sources and timing
-        user_query: Original user query
-        messages: Conversation history
-        client: OpenAI client for query rewriting
-
-    Returns:
-        AgentResult with all metadata
-    """
-    # Rewrite query for evaluation (handles multi-turn context)
-    with tracker.time_operation("Query Rewriting", "llm_call", {"purpose": "context_resolution"}):
-        rewritten_query: str = rewrite_query_with_context(user_query, messages, client)
-
-    # Self-evaluate the response with rewritten query
-    with tracker.time_operation("Response Evaluation", "llm_call", {"purpose": "quality_assessment"}):
-        evaluation: EvaluationResult = evaluate_response(final_answer, tracker, user_query=rewritten_query)
-
-    # Return structured result
-    result: AgentResult = {
-        "answer": final_answer,
-        "sources": tracker.sources,
-        "tool_calls": tracker.tool_calls,
-        "reasoning_steps": tracker.reasoning_steps,
-        "evaluation": evaluation,
-        "trace": tracker.get_trace()
-    }
-    return result
-
-
 def should_retry(
     evaluation: EvaluationResult,
     attempt: int,
-    config: RetryConfig
+    config: RetryConfig,
+    citation_validation: CitationValidationResult | None = None
 ) -> bool:
     """
     Determine if retry is needed based on evaluation scores.
@@ -138,17 +182,19 @@ def should_retry(
         evaluation: Evaluation result with scores
         attempt: Current attempt number (0-indexed)
         config: Retry configuration with thresholds
+        citation_validation: Optional citation validation result
 
     Returns:
         True if retry should be attempted
     """
-    return config.should_retry(evaluation, attempt)
+    return config.should_retry(evaluation, attempt, citation_validation)
 
 
 def decide_retry_strategy_wrapper(
     evaluation: EvaluationResult,
     sources: list[Any],
-    config: RetryConfig
+    config: RetryConfig,
+    citation_validation: CitationValidationResult | None = None
 ) -> str:
     """
     Decide retry strategy (fix, redo, or none).
@@ -157,8 +203,9 @@ def decide_retry_strategy_wrapper(
         evaluation: Evaluation result with scores
         sources: List of sources used
         config: Retry configuration
+        citation_validation: Optional citation validation result
 
     Returns:
         "fix", "redo", or "none"
     """
-    return decide_retry_strategy(evaluation, sources, config)
+    return decide_retry_strategy(evaluation, sources, config, citation_validation)

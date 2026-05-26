@@ -21,6 +21,7 @@ AI agent that searches recent financial news and provides analysis with storylin
 - 📊 Storyline generation and future impact analysis
 - ✅ Self-evaluation of response quality
 - 🔗 Full traceability of sources and reasoning
+- 🎯 Citation validation system (detects invalid citations and unsupported claims)
 - 🔄 Automatic retry/fix mechanism for low-quality responses
 - 📈 Smart strategy selection (FIX vs REDO) based on evaluation scores
 - 🌐 FastAPI web service with streaming support (Server-Sent Events)
