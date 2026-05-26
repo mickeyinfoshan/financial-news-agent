@@ -238,6 +238,7 @@ def run_agent_with_retry(
                     result, messages = run_agent(user_query, messages)
 
                     evaluation: EvaluationResult = result["evaluation"]
+                    citation_validation = result.get("citation_validation")
 
                     # Store attempt if configured
                     if config.show_attempts and attempt > 0:
@@ -248,7 +249,7 @@ def run_agent_with_retry(
                         })
 
                     # Check if retry needed
-                    if not shared.should_retry(evaluation, attempt, config):
+                    if not shared.should_retry(evaluation, attempt, config, citation_validation):
                         # Success or max attempts reached
                         if config.show_attempts and retry_history:
                             result["retry_history"] = retry_history  # type: ignore[typeddict-item]
@@ -264,7 +265,7 @@ def run_agent_with_retry(
                     previous_messages = messages.copy()
 
                     # Decide strategy
-                    strategy: str = shared.decide_retry_strategy_wrapper(evaluation, result["sources"], config)
+                    strategy: str = shared.decide_retry_strategy_wrapper(evaluation, result["sources"], config, citation_validation)
 
                     if strategy == "none":
                         if config.show_attempts and retry_history:
@@ -282,7 +283,7 @@ def run_agent_with_retry(
                     # Execute retry strategy
                     if strategy == "fix":
                         # FIX: Continue conversation with improvement prompt
-                        fix_prompt: str = build_fix_prompt(evaluation, user_query)
+                        fix_prompt: str = build_fix_prompt(evaluation, user_query, citation_validation)
                         messages.append({"role": "user", "content": fix_prompt})
 
                     elif strategy == "redo":
