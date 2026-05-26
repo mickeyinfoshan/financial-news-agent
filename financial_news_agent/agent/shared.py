@@ -4,7 +4,7 @@ import json
 import logging
 from typing import Any
 from openai import OpenAI
-from ..types import AgentResult, MessageDict, EvaluationResult, ArticleData, ContextConfig, CitationValidationResult
+from ..types import AgentResult, MessageDict, EvaluationResult, ArticleData, SourceData, ContextConfig, CitationValidationResult
 from ..traceability import TraceabilityTracker
 from ..evaluator import evaluate_response
 from ..context_manager import compress_tool_result
@@ -100,21 +100,25 @@ def build_agent_result(
 def process_tool_results(
     tool_result: list[ArticleData],
     tracker: TraceabilityTracker
-) -> None:
+) -> list[SourceData]:
     """
     Add articles from tool result to tracker.sources with IDs.
 
     Args:
         tool_result: Tool execution result containing articles
         tracker: TraceabilityTracker to add sources to
+
+    Returns:
+        List of SourceData with IDs that were added to tracker
     """
     # Calculate starting ID ONCE before the loop to ensure correct sequential numbering
     # Example: if tracker has 5 sources, start_id=6, then articles get IDs 6,7,8,...
     start_id = len(tracker.sources) + 1
 
+    new_sources: list[SourceData] = []
     for idx, article in enumerate(tool_result):
         source_id = start_id + idx  # Sequential ID assignment
-        tracker.add_source({
+        source_data: SourceData = {
             "id": source_id,
             "title": article.get("title", ""),
             "date": article.get("published_at", ""),
@@ -122,20 +126,24 @@ def process_tool_results(
             "url": article.get("url", ""),
             "summary": article.get("description", ""),
             "api_source": article.get("api_source", "unknown")
-        })
+        }
+        tracker.add_source(source_data)
+        new_sources.append(source_data)
+
+    return new_sources
 
 
 def compress_and_build_tool_message(
-    tool_result: list[ArticleData],
+    sources_with_ids: list[SourceData],
     tool_call_id: str,
     total_tokens: int,
     config: ContextConfig
 ) -> MessageDict:
     """
-    Compress tool results based on token usage and build tool response message.
+    Compress sources and build tool response message.
 
     Args:
-        tool_result: Raw tool execution result
+        sources_with_ids: SourceData list with IDs from process_tool_results
         tool_call_id: ID of the tool call
         total_tokens: Current total token count
         config: Context configuration with thresholds
@@ -145,7 +153,7 @@ def compress_and_build_tool_message(
     """
     aggressive: bool = total_tokens > config["warning_threshold"]
     compressed_articles: list[dict[str, Any]] = compress_tool_result(
-        tool_result,
+        sources_with_ids,
         aggressive=aggressive
     )
 

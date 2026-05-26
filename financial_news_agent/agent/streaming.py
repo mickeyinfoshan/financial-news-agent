@@ -164,8 +164,8 @@ async def run_agent_stream(
                     )
                     tracker.add_tool_call(tool_name, tool_args, tool_result)
 
-                    # Track sources
-                    shared.process_tool_results(tool_result, tracker)
+                    # Track sources and get sources with IDs
+                    sources_with_ids = shared.process_tool_results(tool_result, tracker)
 
                     yield {
                         "event": "tool_call_complete",
@@ -180,7 +180,7 @@ async def run_agent_stream(
 
                     # Send compressed version to LLM to save tokens
                     tool_message = shared.compress_and_build_tool_message(
-                        tool_result, tool_call["id"], total_tokens, config
+                        sources_with_ids, tool_call["id"], total_tokens, config
                     )
                     messages.append(tool_message)
             else:

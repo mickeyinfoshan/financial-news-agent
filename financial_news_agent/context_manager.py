@@ -33,38 +33,38 @@ def load_config() -> ContextConfig:
     }
 
 
-def compress_tool_result(articles: list[ArticleData], aggressive: bool = False) -> list[dict[str, Any]]:
-    """Compress tool result articles to save tokens.
+def compress_tool_result(sources: list[Any], aggressive: bool = False) -> list[dict[str, Any]]:
+    """Compress sources to save tokens.
 
     Two-tier compression strategy:
     - Tier 1 (always): Remove description/content fields - LLM only needs metadata
-    - Tier 2 (aggressive): Limit to 10 articles when approaching token limits
+    - Tier 2 (aggressive): Limit to 10 sources when approaching token limits
 
     Args:
-        articles: List of article dictionaries from news search
-        aggressive: If True, apply aggressive compression (limit articles)
+        sources: List of SourceData dictionaries with IDs
+        aggressive: If True, apply aggressive compression (limit sources)
 
     Returns:
-        list: Compressed articles with reduced fields and source numbering
+        list: Compressed sources with reduced fields
     """
-    if not articles:
+    if not sources:
         return []
 
-    # Tier 2: Limit number of articles if aggressive mode
-    compressed_articles: list[ArticleData] = articles
+    # Tier 2: Limit number of sources if aggressive mode
+    compressed_sources: list[Any] = sources
     if aggressive:
-        compressed_articles = articles[:10]
-        logger.info(f"Aggressive compression: limited to {len(compressed_articles)} articles")
+        compressed_sources = sources[:10]
+        logger.info(f"Aggressive compression: limited to {len(compressed_sources)} sources")
 
-    # Tier 1: Keep only essential fields, use existing IDs from ArticleData
+    # Tier 1: Keep only essential fields, use existing IDs from SourceData
     compressed: list[dict[str, Any]] = []
-    for article in compressed_articles:
+    for source in compressed_sources:
         compressed.append({
-            "id": article.get("id"),
-            "title": article.get("title", ""),
-            "source": article.get("source", ""),
-            "url": article.get("url", ""),
-            "published_at": article.get("published_at", "")
+            "id": source["id"],
+            "title": source.get("title", ""),
+            "source": source.get("source", ""),
+            "url": source.get("url", ""),
+            "published_at": source.get("date", "")
         })
 
     return compressed

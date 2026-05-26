@@ -142,12 +142,12 @@ def run_agent(
                         # Track the tool call
                         tracker.add_tool_call(tool_name, tool_args, tool_result)
 
-                        # Store full articles in tracker for final result
-                        shared.process_tool_results(tool_result, tracker)
+                        # Store full articles in tracker and get sources with IDs
+                        sources_with_ids = shared.process_tool_results(tool_result, tracker)
 
                         # Send compressed version to LLM to save tokens
                         tool_message = shared.compress_and_build_tool_message(
-                            tool_result, tool_call.id, total_tokens, config
+                            sources_with_ids, tool_call.id, total_tokens, config
                         )
                         messages.append(tool_message)
                 else:
