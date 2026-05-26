@@ -29,7 +29,8 @@ def create_conversation() -> list[MessageDict]:
 def run_agent(
     user_query: str,
     messages: list[MessageDict],
-    tracker: TraceabilityTracker | None = None
+    tracker: TraceabilityTracker | None = None,
+    append_query: bool = True
 ) -> tuple[AgentResult, list[MessageDict]]:
     """
     Run the financial news agent.
@@ -38,6 +39,7 @@ def run_agent(
         user_query: User's question about a company or industry
         messages: Existing conversation history (includes system message)
         tracker: Optional tracker to reuse (for retry accumulation). If None, creates new tracker.
+        append_query: Whether to append user_query to messages (False for retry scenarios)
 
     Returns:
         Tuple of (result dict, updated messages list)
@@ -51,8 +53,9 @@ def run_agent(
         tracker = TraceabilityTracker()
     config: ContextConfig = load_config()
 
-    # Append new user query to existing conversation
-    messages.append({"role": "user", "content": user_query})
+    # Append new user query to existing conversation (skip for retries)
+    if append_query:
+        messages.append({"role": "user", "content": user_query})
 
     # Tool definitions
     tools: list[dict[str, Any]] = [get_tool_schema()]
@@ -236,9 +239,9 @@ def run_agent_with_retry(
 
             with tracker.time_operation(f"Attempt {attempt + 1}", "attempt", attempt_metadata):
                 try:
-                    # Run the agent
+                    # Run the agent (skip appending query for retries)
                     result: AgentResult
-                    result, messages = run_agent(user_query, messages, tracker)
+                    result, messages = run_agent(user_query, messages, tracker, append_query=(attempt == 0))
 
                     evaluation: EvaluationResult = result["evaluation"]
                     citation_validation = result.get("citation_validation")
@@ -285,15 +288,32 @@ def run_agent_with_retry(
 
                     # Execute retry strategy
                     if strategy == "fix":
+                        # FIX: Mark the low-quality assistant response as internal
+                        for i in range(len(messages) - 1, -1, -1):
+                            if messages[i].get("role") == "assistant":
+                                messages[i]["internal"] = True
+                                break
+
                         # FIX: Continue conversation with improvement prompt
                         fix_prompt: str = build_fix_prompt(evaluation, user_query, citation_validation)
-                        messages.append({"role": "user", "content": fix_prompt})
+                        messages.append({"role": "user", "content": fix_prompt, "internal": True})
 
                     elif strategy == "redo":
-                        # REDO: Reset to system message + new query
-                        system_msg: MessageDict = messages[0]
+                        # REDO: Mark failed response and tool messages as internal, then request fresh search
+                        # Mark the failed assistant response as internal
+                        for i in range(len(messages) - 1, -1, -1):
+                            if messages[i].get("role") == "assistant":
+                                messages[i]["internal"] = True
+                                break
+
+                        # Mark all tool messages as internal (signals: don't reuse these sources)
+                        for msg in messages:
+                            if msg.get("role") == "tool":
+                                msg["internal"] = True
+
+                        # Append redo prompt requesting fresh search
                         redo_prompt: str = build_redo_prompt(evaluation, user_query)
-                        messages = [system_msg, {"role": "user", "content": redo_prompt}]
+                        messages.append({"role": "user", "content": redo_prompt, "internal": True})
 
                     attempt += 1
 

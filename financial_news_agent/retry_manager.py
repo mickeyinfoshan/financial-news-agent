@@ -189,7 +189,7 @@ Provide an improved version of your answer to the original query: "{original_que
 
 def build_redo_prompt(evaluation: EvaluationResult, original_query: str) -> str:
     """
-    Build a prompt to redo the answer from scratch.
+    Build a prompt to redo the answer from scratch with fresh searches.
 
     Args:
         evaluation: Evaluation dict with scores and feedback
@@ -204,11 +204,13 @@ def build_redo_prompt(evaluation: EvaluationResult, original_query: str) -> str:
 
 EVALUATION FEEDBACK: {feedback}
 
+You can see your previous attempt above (marked as internal). Learn from what didn't work, but DO NOT reuse those sources or tool results.
+
 Please start fresh:
-1. Search for news again with better search queries
+1. Search for news again with DIFFERENT and better search queries
 2. Focus on finding highly relevant and accurate sources
 3. Ensure you're answering the right question: "{original_query}"
-4. Build a coherent storyline from the sources
+4. Build a coherent storyline from the NEW sources
 5. Provide well-reasoned future impact analysis
 
 Answer the query: "{original_query}"
