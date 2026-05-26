@@ -43,10 +43,12 @@ New module implementing 5-stage validation:
 - Returns supported status, confidence level, and explanation
 - Batch validation (one LLM call for all claims)
 
-**Confidence Levels:**
+**Confidence Levels (Support Strength):**
 - **"high"**: Claim directly stated in sources (word-for-word or clear equivalence)
 - **"medium"**: Reasonable inference well-supported by sources
 - **"low"**: Weak support, significant inference required, or tangential relation
+
+**Note:** Confidence represents support strength, not certainty of judgment. For unsupported claims (supported=false), confidence should be "low" to indicate weak/no support. The validation logic checks only the `supported` field; confidence is informational metadata for analysis.
 
 #### Stage 5: Orchestration
 - Coordinates all stages with retry logic (max 3 attempts)
@@ -169,6 +171,15 @@ This 1-to-N structure allows LLM to directly see which sources support each clai
 - Extraction failures: Retry up to 3 times, fallback to empty claims list
 - Validation failures: Log error, continue without validation results
 - LLM errors: Graceful degradation, don't block agent execution
+
+### 5. Validation Logic
+
+**Validation Passed Criteria:**
+- No invalid citations (citations outside valid range 1-N)
+- All claims are supported by their cited sources (supported=true)
+
+**Note on Confidence:**
+The `confidence` field indicates support strength and is informational only. It does not affect validation pass/fail status. Validation fails if any claim has `supported=false`, regardless of confidence level.
 
 ### 5. Code Quality
 - Extracted JSON parsing to `parse_json_response()` utility function

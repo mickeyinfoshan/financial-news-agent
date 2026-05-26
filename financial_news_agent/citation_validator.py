@@ -387,6 +387,10 @@ def validate_citations(
     total_invalid = sum(len(c.get("invalid_citations", [])) for c in claims)
 
     # Determine if validation passed
+    # Note: confidence represents support strength (informational only)
+    # Validation fails if:
+    # 1. Any claim has invalid citations (out of range)
+    # 2. Any claim is unsupported (supported=false)
     validation_passed = True
 
     for claim in claims:
@@ -394,11 +398,10 @@ def validate_citations(
         if claim.get("invalid_citations"):
             validation_passed = False
 
-        # Check for unsupported claims with high/medium confidence
+        # Check for unsupported claims (regardless of confidence)
         validation_result = claim.get("validation_result")
         if validation_result and not validation_result["supported"]:
-            if validation_result["confidence"] in ["high", "medium"]:
-                validation_passed = False
+            validation_passed = False
 
     return {
         "claims": claims,
