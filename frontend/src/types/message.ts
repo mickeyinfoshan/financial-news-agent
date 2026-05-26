@@ -29,4 +29,5 @@ export interface StreamingState {
   currentTool?: string;
   iteration?: number;
   status: 'thinking' | 'searching' | 'writing' | 'evaluating';
+  sources?: Source[];
 }
