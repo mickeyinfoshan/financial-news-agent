@@ -150,6 +150,7 @@ class MessageDict(TypedDict, total=False):
     reasoning_steps: list[str]
     trace: TraceData
     retry_history: list[RetryAttempt]
+    citation_validation: CitationValidationResult
 
 
 # API Module Types
