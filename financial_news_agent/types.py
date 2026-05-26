@@ -144,6 +144,7 @@ class MessageDict(TypedDict, total=False):
     tool_calls: Any
     tool_call_id: str
     name: str
+    internal: bool
     # Extended fields for API responses
     sources: list[SourceData]
     evaluation: EvaluationResult
