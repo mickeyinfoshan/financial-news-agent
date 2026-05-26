@@ -272,8 +272,9 @@ async def run_agent_with_retry_stream(
             break
 
         evaluation: EvaluationResult = result["evaluation"]
+        citation_validation = result.get("citation_validation")
 
-        if not shared.should_retry(evaluation, attempt - 1, config) or attempt > config.max_attempts:
+        if not shared.should_retry(evaluation, attempt - 1, config, citation_validation) or attempt > config.max_attempts:
             # Add retry history to final result if any retries occurred
             if retry_history:
                 result["retry_history"] = retry_history  # type: ignore[typeddict-item]
@@ -288,7 +289,7 @@ async def run_agent_with_retry_stream(
             return
 
         # Determine retry strategy
-        strategy = shared.decide_retry_strategy_wrapper(evaluation, result["sources"], config)
+        strategy = shared.decide_retry_strategy_wrapper(evaluation, result["sources"], config, citation_validation)
 
         if strategy == "none":
             if retry_history:
@@ -319,7 +320,7 @@ async def run_agent_with_retry_stream(
         # Prepare for retry
         if strategy == "fix":
             # FIX: Continue conversation with improvement prompt
-            fix_prompt: str = build_fix_prompt(evaluation, user_query)
+            fix_prompt: str = build_fix_prompt(evaluation, user_query, citation_validation)
             messages.append({"role": "user", "content": fix_prompt})
         elif strategy == "redo":
             # REDO: Reset to system message + new query

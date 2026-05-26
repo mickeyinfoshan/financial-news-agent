@@ -172,7 +172,8 @@ def should_force_final_answer(iteration: int, max_iterations: int) -> tuple[bool
 def should_retry(
     evaluation: EvaluationResult,
     attempt: int,
-    config: RetryConfig
+    config: RetryConfig,
+    citation_validation: CitationValidationResult | None = None
 ) -> bool:
     """
     Determine if retry is needed based on evaluation scores.
@@ -181,17 +182,19 @@ def should_retry(
         evaluation: Evaluation result with scores
         attempt: Current attempt number (0-indexed)
         config: Retry configuration with thresholds
+        citation_validation: Optional citation validation result
 
     Returns:
         True if retry should be attempted
     """
-    return config.should_retry(evaluation, attempt)
+    return config.should_retry(evaluation, attempt, citation_validation)
 
 
 def decide_retry_strategy_wrapper(
     evaluation: EvaluationResult,
     sources: list[Any],
-    config: RetryConfig
+    config: RetryConfig,
+    citation_validation: CitationValidationResult | None = None
 ) -> str:
     """
     Decide retry strategy (fix, redo, or none).
@@ -200,8 +203,9 @@ def decide_retry_strategy_wrapper(
         evaluation: Evaluation result with scores
         sources: List of sources used
         config: Retry configuration
+        citation_validation: Optional citation validation result
 
     Returns:
         "fix", "redo", or "none"
     """
-    return decide_retry_strategy(evaluation, sources, config)
+    return decide_retry_strategy(evaluation, sources, config, citation_validation)
