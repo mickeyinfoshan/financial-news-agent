@@ -20,9 +20,24 @@ class RetryConfig:
         if not self.enabled or attempt >= self.max_attempts:
             return False
 
-        # Force retry if citation validation failed
+        # Force retry only for serious citation issues:
+        # 1. Invalid citations (out of range)
+        # 2. More than 3 unsupported claims
         if citation_validation and not citation_validation.get("validation_passed", True):
-            return True
+            # Check for invalid citations using total_invalid_citations field
+            total_invalid = citation_validation.get("total_invalid_citations", 0)
+            has_invalid_citations = total_invalid > 0
+
+            # Count unsupported claims from claims array
+            claims = citation_validation.get("claims", [])
+            unsupported_count = sum(
+                1 for c in claims
+                if c.get("validation_result", {}).get("supported") == False
+            )
+
+            # Only force retry if serious issues exist
+            if has_invalid_citations or unsupported_count > 3:
+                return True
 
         overall: float = evaluation.get("overall", 0)
         accuracy: int = evaluation.get("accuracy", 0)

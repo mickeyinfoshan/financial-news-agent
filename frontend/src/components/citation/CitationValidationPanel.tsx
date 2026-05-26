@@ -144,31 +144,43 @@ export function CitationValidationPanel({ message }: CitationValidationPanelProp
                   className="claim-header"
                   onClick={() => toggleClaim(index)}
                 >
-                  <div className="claim-indicator">
-                    {hasInvalidCitations ? (
-                      <AlertTriangle size={16} className="indicator-icon warning" />
-                    ) : (
-                      <CheckCircle2 size={16} className="indicator-icon success" />
-                    )}
-                  </div>
-
                   <div className="claim-content">
                     <div className="claim-text">{claim.claim}</div>
-                    <div className="claim-citations">
-                      {claim.citations.length > 0 && (
-                        <div className="citation-group valid">
-                          <span className="citation-label">Valid:</span>
-                          {claim.citations.map((num, i) => (
-                            <span key={i} className="citation-num">{num}</span>
-                          ))}
-                        </div>
-                      )}
-                      {claim.invalid_citations.length > 0 && (
-                        <div className="citation-group invalid">
-                          <span className="citation-label">Invalid:</span>
-                          {claim.invalid_citations.map((num, i) => (
-                            <span key={i} className="citation-num">{num}</span>
-                          ))}
+                    <div className="claim-meta">
+                      <div className="claim-citations">
+                        {claim.citations.length > 0 && (
+                          <div className="citation-group valid">
+                            <span className="citation-label">Valid:</span>
+                            {claim.citations.map((num, i) => (
+                              <span key={i} className="citation-num">{num}</span>
+                            ))}
+                          </div>
+                        )}
+                        {claim.invalid_citations.length > 0 && (
+                          <div className="citation-group invalid">
+                            <span className="citation-label">Invalid:</span>
+                            {claim.invalid_citations.map((num, i) => (
+                              <span key={i} className="citation-num">{num}</span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      {hasValidation && claim.validation_result && (
+                        <div className="validation-badges">
+                          <span className={clsx(
+                            'status-badge',
+                            claim.validation_result.supported ? 'supported' : 'unsupported'
+                          )}>
+                            {claim.validation_result.supported ? 'SUPPORTED' : 'UNSUPPORTED'}
+                          </span>
+                          <span
+                            className="confidence-badge"
+                            style={{
+                              backgroundColor: getConfidenceColor(claim.validation_result.confidence)
+                            }}
+                          >
+                            {getConfidenceLabel(claim.validation_result.confidence)}
+                          </span>
                         </div>
                       )}
                     </div>
@@ -194,25 +206,6 @@ export function CitationValidationPanel({ message }: CitationValidationPanelProp
                       className="claim-details"
                     >
                       <div className="validation-result">
-                        <div className="result-header">
-                          <div className="result-status">
-                            <span className={clsx(
-                              'status-badge',
-                              claim.validation_result.supported ? 'supported' : 'unsupported'
-                            )}>
-                              {claim.validation_result.supported ? 'SUPPORTED' : 'UNSUPPORTED'}
-                            </span>
-                            <span
-                              className="confidence-badge"
-                              style={{
-                                backgroundColor: getConfidenceColor(claim.validation_result.confidence)
-                              }}
-                            >
-                              {getConfidenceLabel(claim.validation_result.confidence)}
-                            </span>
-                          </div>
-                        </div>
-
                         <div className="result-explanation">
                           <div className="explanation-label">Analysis</div>
                           <p className="explanation-text">
@@ -410,22 +403,6 @@ export function CitationValidationPanel({ message }: CitationValidationPanelProp
           user-select: none;
         }
 
-        .claim-indicator {
-          flex-shrink: 0;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          margin-top: 0.125rem;
-        }
-
-        .indicator-icon.success {
-          color: var(--color-validation-success);
-        }
-
-        .indicator-icon.warning {
-          color: var(--color-validation-warning);
-        }
-
         .claim-content {
           flex: 1;
           display: flex;
@@ -440,9 +417,21 @@ export function CitationValidationPanel({ message }: CitationValidationPanelProp
           color: var(--color-ink);
         }
 
+        .claim-meta {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
+          gap: 0.75rem;
+        }
+
         .claim-citations {
           display: flex;
           flex-wrap: wrap;
+          gap: 0.5rem;
+        }
+
+        .validation-badges {
+          display: flex;
           gap: 0.5rem;
         }
 
@@ -490,43 +479,6 @@ export function CitationValidationPanel({ message }: CitationValidationPanelProp
           background: var(--color-validation-error);
         }
 
-        .claim-toggle {
-          flex-shrink: 0;
-          display: flex;
-          align-items: center;
-          color: var(--color-ink-light);
-          transition: color var(--transition-fast);
-        }
-
-        .claim-header:hover .claim-toggle {
-          color: var(--color-salmon);
-        }
-
-        /* Claim Details */
-        .claim-details {
-          border-top: 1px solid var(--color-border-light);
-          padding: 0.875rem;
-          background: var(--color-paper-dark);
-          overflow: hidden;
-        }
-
-        .validation-result {
-          display: flex;
-          flex-direction: column;
-          gap: 0.75rem;
-        }
-
-        .result-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-        }
-
-        .result-status {
-          display: flex;
-          gap: 0.5rem;
-        }
-
         .status-badge {
           display: inline-flex;
           align-items: center;
@@ -557,6 +509,31 @@ export function CitationValidationPanel({ message }: CitationValidationPanelProp
           letter-spacing: 0.5px;
           border-radius: 3px;
           color: white;
+        }
+
+        .claim-toggle {
+          flex-shrink: 0;
+          display: flex;
+          align-items: center;
+          color: var(--color-ink-light);
+          transition: color var(--transition-fast);
+        }
+
+        .claim-header:hover .claim-toggle {
+          color: var(--color-salmon);
+        }
+
+        /* Claim Details */
+        .claim-details {
+          border-top: 1px solid var(--color-border-light);
+          padding: 0.875rem;
+          background: var(--color-paper-dark);
+          overflow: hidden;
+        }
+
+        .validation-result {
+          display: flex;
+          flex-direction: column;
         }
 
         .result-explanation {
