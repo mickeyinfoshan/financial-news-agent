@@ -71,6 +71,7 @@ export function useStreamingQuery() {
                 ...currentState3,
                 currentTool: undefined,
                 status: 'thinking',
+                sources: event.data.sources || []
               });
             }
             break;

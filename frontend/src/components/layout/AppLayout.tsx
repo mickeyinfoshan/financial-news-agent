@@ -11,7 +11,7 @@ import { CitationValidationPanel } from '@/components/citation/CitationValidatio
 
 export default function AppLayout() {
   const { currentSessionId } = useSessionStore();
-  const { messagesBySession } = useMessageStore();
+  const { messagesBySession, streamingState } = useMessageStore();
   const { selectedMessageId, selectMessage } = useUIStore();
   const [showTerminal, setShowTerminal] = useState(false);
 
@@ -36,6 +36,22 @@ export default function AppLayout() {
     // Default: latest agent message
     return agentMessages[agentMessages.length - 1];
   }, [selectedMessageId, agentMessages]);
+
+  // Create a display message that combines selectedMessage and streamingState
+  const displayMessage = useMemo(() => {
+    // If streaming and has sources, create temporary message for display
+    if (streamingState?.sources && streamingState.sources.length > 0) {
+      return {
+        id: streamingState.messageId,
+        role: 'agent' as const,
+        content: streamingState.accumulatedText,
+        timestamp: new Date().toISOString(),
+        sources: streamingState.sources,
+      };
+    }
+    // Otherwise use the selected message
+    return selectedMessage;
+  }, [streamingState, selectedMessage]);
 
   // Auto-select latest message when it changes (new message arrives)
   useEffect(() => {
@@ -100,7 +116,7 @@ export default function AppLayout() {
           </div>
 
           <div className="panel-content">
-            {currentSessionId && selectedMessage ? (
+            {currentSessionId && displayMessage ? (
               <>
                 {/* Sources Section */}
                 <section className="insight-section">
@@ -108,26 +124,28 @@ export default function AppLayout() {
                     <span className="label-icon">📰</span>
                     Source Material
                   </h3>
-                  <SourcesPanel message={selectedMessage} />
+                  <SourcesPanel message={displayMessage} />
                 </section>
 
-                {/* Evaluation Section */}
-                <section className="insight-section">
-                  <h3 className="section-label">
-                    <span className="label-icon">📊</span>
-                    Quality Assessment
-                  </h3>
-                  <EvaluationPanel message={selectedMessage} />
-                </section>
+                {/* Evaluation Section - only show if evaluation exists */}
+                {displayMessage.evaluation && (
+                  <section className="insight-section">
+                    <h3 className="section-label">
+                      <span className="label-icon">📊</span>
+                      Quality Assessment
+                    </h3>
+                    <EvaluationPanel message={displayMessage} />
+                  </section>
+                )}
 
                 {/* Citation Validation Section */}
-                {selectedMessage.citation_validation && (
+                {displayMessage.citation_validation && (
                   <section className="insight-section">
                     <h3 className="section-label">
                       <span className="label-icon">✓</span>
                       Citation Validation
                     </h3>
-                    <CitationValidationPanel message={selectedMessage} />
+                    <CitationValidationPanel message={displayMessage} />
                   </section>
                 )}
               </>
@@ -145,7 +163,7 @@ export default function AppLayout() {
       {/* Terminal Panel */}
       {showTerminal && (
         <div className="terminal-container">
-          <TerminalPanel message={selectedMessage} onClose={() => setShowTerminal(false)} />
+          <TerminalPanel message={displayMessage} onClose={() => setShowTerminal(false)} />
         </div>
       )}
     </div>

@@ -177,7 +177,8 @@ async def run_agent_stream(
                             "tool_name": tool_name,
                             "result_summary": f"Retrieved {len(tool_result)} articles",
                             "article_count": len(tool_result),
-                            "iteration": iteration + 1
+                            "iteration": iteration + 1,
+                            "sources": tracker.sources
                         }
                     }
 
