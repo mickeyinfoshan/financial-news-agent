@@ -51,7 +51,9 @@ def _merge_tool_call_delta(
 
 async def run_agent_stream(
     user_query: str,
-    messages: list[MessageDict]
+    messages: list[MessageDict],
+    tracker: TraceabilityTracker | None = None,
+    append_query: bool = True
 ) -> AsyncGenerator[dict[str, Any], None]:
     """
     Async streaming agent execution with real-time events.
@@ -59,6 +61,8 @@ async def run_agent_stream(
     Args:
         user_query: User's question about a company or industry
         messages: Existing conversation history (includes system message)
+        tracker: Optional tracker to reuse (for retry accumulation). If None, creates new tracker.
+        append_query: Whether to append user_query to messages (False for retry scenarios)
 
     Yields:
         Event dicts with types: agent_start, iteration_start, token, tool_call_start,
@@ -68,12 +72,15 @@ async def run_agent_stream(
         api_key=os.getenv("OPENAI_API_KEY"),
         base_url=os.getenv("OPENAI_BASE_URL")
     )
-    tracker = TraceabilityTracker()
+    if tracker is None:
+        tracker = TraceabilityTracker()
     config: ContextConfig = load_config()
 
     yield {"event": "agent_start", "data": {"query": user_query}}
 
-    messages.append({"role": "user", "content": user_query})
+    # Append new user query to existing conversation (skip for retries)
+    if append_query:
+        messages.append({"role": "user", "content": user_query})
     tools = [get_tool_schema()]
     final_answer: str | None = None
     total_tokens = 0  # Track cumulative token usage
@@ -248,17 +255,18 @@ async def run_agent_with_retry_stream(
         Event dicts including retry events when quality is low
     """
     config = RetryConfig()
+    tracker = TraceabilityTracker()  # Create tracker once for all attempts
     attempt = 0
     retry_history: list[dict[str, Any]] = []
 
     while attempt <= config.max_attempts:
         attempt += 1
 
-        # Run agent and collect result
+        # Run agent and collect result (skip appending query for retries)
         result: AgentResult | None = None
         updated_messages: list[MessageDict] | None = None
 
-        async for event in run_agent_stream(user_query, messages):
+        async for event in run_agent_stream(user_query, messages, tracker, append_query=(attempt == 1)):
             # Capture final result
             if event["event"] == "done":
                 result = event["data"]["result"]
@@ -319,11 +327,28 @@ async def run_agent_with_retry_stream(
 
         # Prepare for retry
         if strategy == "fix":
+            # FIX: Mark the low-quality assistant response as internal
+            for i in range(len(messages) - 1, -1, -1):
+                if messages[i].get("role") == "assistant":
+                    messages[i]["internal"] = True
+                    break
+
             # FIX: Continue conversation with improvement prompt
             fix_prompt: str = build_fix_prompt(evaluation, user_query, citation_validation)
-            messages.append({"role": "user", "content": fix_prompt})
+            messages.append({"role": "user", "content": fix_prompt, "internal": True})
         elif strategy == "redo":
-            # REDO: Reset to system message + new query
-            system_msg: MessageDict = messages[0]
+            # REDO: Mark failed response and tool messages as internal, then request fresh search
+            # Mark the failed assistant response as internal
+            for i in range(len(messages) - 1, -1, -1):
+                if messages[i].get("role") == "assistant":
+                    messages[i]["internal"] = True
+                    break
+
+            # Mark all tool messages as internal (signals: don't reuse these sources)
+            for msg in messages:
+                if msg.get("role") == "tool":
+                    msg["internal"] = True
+
+            # Append redo prompt requesting fresh search
             redo_prompt: str = build_redo_prompt(evaluation, user_query)
-            messages = [system_msg, {"role": "user", "content": redo_prompt}]
+            messages.append({"role": "user", "content": redo_prompt, "internal": True})

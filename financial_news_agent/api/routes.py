@@ -24,6 +24,7 @@ from .models import (
 )
 from .session_manager import session_manager
 from ..agent import run_agent_with_retry, run_agent_with_retry_stream, create_conversation
+from ..types import MessageDict
 
 logger = logging.getLogger(__name__)
 
@@ -215,6 +216,15 @@ async def get_session(session_id: str) -> SessionMetadata:
     )
 
 
+def filter_internal_messages(messages: list[MessageDict]) -> list[MessageDict]:
+    """Filter out internal messages (FIX/REDO prompts, context summaries).
+
+    Internal messages are kept in the conversation history for LLM context
+    but hidden from the UI to avoid confusing users.
+    """
+    return [msg for msg in messages if not msg.get("internal", False)]
+
+
 @router.get("/session/{session_id}/messages", response_model=SessionMessagesResponse)
 async def get_session_messages(session_id: str) -> SessionMessagesResponse:
     """Get full conversation history for a session."""
@@ -222,9 +232,12 @@ async def get_session_messages(session_id: str) -> SessionMessagesResponse:
     if not session:
         raise HTTPException(status_code=404, detail=f"Session {session_id} not found")
 
+    # Filter out internal messages before returning to UI
+    filtered_messages = filter_internal_messages(session["messages"])
+
     return SessionMessagesResponse(
         session_id=session["session_id"],
-        messages=session["messages"]  # type: ignore[arg-type]
+        messages=filtered_messages  # type: ignore[arg-type]
     )
 
 

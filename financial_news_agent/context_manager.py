@@ -226,7 +226,8 @@ def manage_context(
             summary_msg: MessageDict = {
                 "role": "system",
                 "content": f"[Previous conversation summary]: {summary}",
-                "name": "context_summary"
+                "name": "context_summary",
+                "internal": True
             }
             new_messages: list[MessageDict] = [system_msg, summary_msg] + recent_msgs
 
