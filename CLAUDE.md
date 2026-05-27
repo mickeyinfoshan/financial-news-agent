@@ -49,7 +49,21 @@ uv run pytest
 financial_news_agent/     # Main source code
 ├── __init__.py
 ├── __main__.py           # Entry point
-├── agent.py              # Main agent loop with LLM and tool calling
+├── agent/                # Agent module (refactored for SRP)
+│   ├── __init__.py       # Exports agent functions
+│   ├── sync.py           # Synchronous agent implementation
+│   ├── streaming.py      # Streaming agent implementation
+│   ├── query_rewriter.py # Query rewriting logic
+│   ├── prompts.py        # System prompts
+│   ├── shared.py         # Shared agent utilities
+│   └── README.md         # Agent module documentation
+├── api/                  # REST API module
+│   ├── __init__.py
+│   ├── main.py           # FastAPI app factory
+│   ├── routes.py         # API endpoints
+│   ├── models.py         # Pydantic models
+│   └── session_manager.py # Session management
+├── api_server.py         # API server entry point
 ├── news_tool.py          # News search orchestration
 ├── news_sources/         # News provider implementations
 │   ├── __init__.py       # Exports all providers
@@ -57,11 +71,15 @@ financial_news_agent/     # Main source code
 │   ├── newsapi.py        # NewsAPIProvider implementation
 │   ├── finnhub.py        # FinnhubProvider implementation
 │   └── marketaux.py      # MarketauxProvider implementation
+├── types.py              # TypedDict definitions for all data structures
+├── config.py             # Configuration management
 ├── traceability.py       # Traceability tracking
 ├── evaluator.py          # Self-evaluation logic
+├── citation_validator.py # Citation validation logic
 ├── retry_manager.py      # Retry/fix mechanism for low-quality responses
 ├── context_manager.py    # Context window management
-└── utils.py              # Shared utility functions (citation extraction)
+├── utils.py              # Shared utility functions (citation extraction)
+└── README.md             # Package documentation
 
 tests/                    # Formal unit and integration tests
 .dev_process/             # Temporary validation scripts (not committed long-term)
@@ -80,11 +98,15 @@ tests/                    # Formal unit and integration tests
 
 The system uses a simple agentic loop with these components:
 
-1. **Agent Loop** (`agent.py`): Orchestrates LLM calls with OpenAI function calling
+1. **Agent Module** (`agent/`): Orchestrates LLM calls with OpenAI function calling
+   - **Synchronous Mode** (`sync.py`): Standard agent execution
+   - **Streaming Mode** (`streaming.py`): Real-time streaming responses for API
    - Iterative loop (max 10 iterations)
    - Calls news search tool as needed
    - Tracks all tool calls and reasoning steps
    - Wrapped by `run_agent_with_retry()` for automatic quality improvement
+   - Query rewriting (`query_rewriter.py`) for better search results
+   - Shared utilities (`shared.py`) for common agent operations
 
 2. **News Search** (`news_tool.py`): Multi-source news retrieval with extensible provider system
    - **Provider Abstraction**: Protocol-based design for easy addition of new sources
@@ -95,28 +117,51 @@ The system uses a simple agentic loop with these components:
    - Dynamic ticker resolution via Finnhub Symbol Search API
    - Providers automatically activated based on API key availability
 
-3. **Traceability** (`traceability.py`): Audit trail tracking
+3. **REST API** (`api/`): FastAPI-based web service
+   - Session management with conversation history
+   - Synchronous and streaming endpoints
+   - CORS support for frontend integration
+   - Request timeout and error handling
+
+4. **Type System** (`types.py`): Comprehensive type definitions
+   - TypedDict definitions for all data structures
+   - Zero runtime overhead with full type safety
+   - Covers articles, sources, evaluations, traces, sessions, and API models
+
+5. **Configuration** (`config.py`): Centralized configuration management
+   - Environment variable loading
+   - Type-safe configuration access
+   - Default values and validation
+
+6. **Traceability** (`traceability.py`): Audit trail tracking
    - Records all sources, tool calls, and reasoning steps
    - Maintains query → sources → reasoning → response chain
 
-4. **Self-Evaluation** (`evaluator.py`): Quality validation
+7. **Self-Evaluation** (`evaluator.py`): Quality validation
    - Evaluates accuracy, relevance, coherence, and impact analysis
    - Produces scores (1-10 scale) for each dimension
    - Triggers retry mechanism when scores are below threshold
    - Uses shared citation extraction utility from `utils.py`
 
-5. **Retry/Fix Mechanism** (`retry_manager.py`): Automatic quality improvement
+8. **Citation Validation** (`citation_validator.py`): Ensures citation accuracy
+   - Extracts claims and their citations from agent responses
+   - Validates that citations actually support the claims
+   - LLM-based validation with confidence scoring
+   - Prevents hallucinated or mismatched citations
+
+9. **Retry/Fix Mechanism** (`retry_manager.py`): Automatic quality improvement
    - Monitors evaluation scores and triggers retries when quality is low
    - **FIX strategy**: Improves existing answer using same sources (for coherence/reasoning issues)
    - **REDO strategy**: Starts fresh with new search (for accuracy/relevance issues)
    - Configurable thresholds and retry limits to control cost
 
-6. **Context Management** (`context_manager.py`): Token optimization
+10. **Context Management** (`context_manager.py`): Token optimization
    - Compresses tool results to reduce token usage
    - Summarizes old conversation history when approaching limits
    - Tracks token usage from OpenAI API responses
+   - Configurable thresholds and compression strategies
 
-7. **Utilities** (`utils.py`): Shared helper functions
+11. **Utilities** (`utils.py`): Shared helper functions
    - `extract_citations()`: Extracts citation numbers from text
    - Eliminates code duplication across modules
 
@@ -141,6 +186,14 @@ NEWS_API_KEY=your_newsapi_key
 FINNHUB_API_KEY=your_finnhub_api_key
 MARKETAUX_API_KEY=your_marketaux_api_key  # Optional, for Marketaux news source
 
+# Context Window Management (Optional)
+CONTEXT_TOKEN_THRESHOLD=12000      # When to trigger summarization
+CONTEXT_MESSAGE_THRESHOLD=15       # Fallback message count limit
+CONTEXT_RECENT_MESSAGES=4          # How many recent messages to preserve
+CONTEXT_WARNING_THRESHOLD=8000     # When to apply aggressive compression
+CONTEXT_MAX_ARTICLES=10            # Max articles per tool result (aggressive mode)
+CONTEXT_ENABLE_COMPRESSION=true    # Master switch for compression
+
 # Retry/Fix Mechanism (Optional)
 RETRY_ENABLE=true                    # Enable automatic retry for low-quality responses
 RETRY_THRESHOLD_OVERALL=6.0          # Trigger retry if overall score < 6.0
@@ -148,6 +201,13 @@ RETRY_THRESHOLD_ACCURACY=5.0         # Critical threshold for accuracy
 RETRY_MAX_ATTEMPTS=1                 # Maximum retry attempts (1-3 recommended)
 RETRY_STRATEGY=auto                  # Strategy: auto|fix|redo|disabled
 RETRY_SHOW_ATTEMPTS=true             # Show retry history to user
+
+# API Configuration (Optional)
+API_HOST=0.0.0.0                     # API server host
+API_PORT=8000                        # API server port
+API_RELOAD=false                     # Enable auto-reload for development
+API_CORS_ORIGINS=http://localhost:3000  # Allowed CORS origins (comma-separated)
+API_REQUEST_TIMEOUT_SECONDS=120      # Request timeout in seconds
 ```
 
 ### Retry/Fix Mechanism
