@@ -1,7 +1,7 @@
 import React from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { parseCitations } from '@/utils/citations';
+import { parseCitations, createSourceIdMapping } from '@/utils/citations';
 
 interface MarkdownMessageProps {
   content: string;
@@ -13,6 +13,9 @@ export function MarkdownMessage({ content, onCitationClick }: MarkdownMessagePro
     return <span></span>;
   }
 
+  // Create mapping from source IDs to display numbers
+  const mapping = createSourceIdMapping(content);
+
   // Recursive function to process text nodes and replace citations with buttons
   const processTextWithCitations = (children: React.ReactNode): React.ReactNode => {
     return React.Children.map(children, (child) => {
@@ -21,13 +24,14 @@ export function MarkdownMessage({ content, onCitationClick }: MarkdownMessagePro
         const parts = parseCitations(child);
         return parts.map((part, i) => {
           if (part.type === 'citation' && part.sourceId !== undefined) {
+            const displayNumber = mapping.sourceIdToDisplay.get(part.sourceId) ?? part.sourceId;
             return (
               <button
                 key={i}
                 className="citation-badge-inline"
                 onClick={() => onCitationClick(part.sourceId!)}
               >
-                {part.content}
+                [{displayNumber}]
               </button>
             );
           }

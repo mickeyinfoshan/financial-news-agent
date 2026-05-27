@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { ExternalLink, ChevronDown, ChevronUp } from 'lucide-react';
 import { useUIStore } from '@/store/uiStore';
 import { formatDate } from '@/utils/formatting';
-import { extractSourceIds } from '@/utils/citations';
+import { createSourceIdMapping } from '@/utils/citations';
 import { Message } from '@/types/message';
 import clsx from 'clsx';
 
@@ -18,11 +18,13 @@ export default function SourcesPanel({ message }: SourcesPanelProps) {
 
   const allSources = message.sources || [];
 
-  // Extract source IDs from message content
-  const citedSourceIds = extractSourceIds(message.content);
+  // Create mapping from source IDs to display numbers
+  const mapping = createSourceIdMapping(message.content);
 
-  // Filter sources to only show cited ones
-  const sources = allSources.filter((source: any) => citedSourceIds.includes(source.id));
+  // Build sources list in order of appearance
+  const sources = mapping.orderedSourceIds
+    .map(sourceId => allSources.find((s: any) => s.id === sourceId))
+    .filter((s): s is any => s !== undefined);
 
   // Auto-scroll to selected source
   useEffect(() => {
@@ -75,7 +77,7 @@ export default function SourcesPanel({ message }: SourcesPanelProps) {
           >
             {/* Citation Badge */}
             <div className="source-header">
-              <span className="citation-badge">{sourceId}</span>
+              <span className="citation-badge">[{mapping.sourceIdToDisplay.get(sourceId) ?? sourceId}]</span>
               <div className="source-title-section">
                 <h4 className="source-title">{source.title}</h4>
                 {source.url && (

@@ -51,3 +51,33 @@ export function extractSourceIds(text: string): number[] {
 
   return numbers;
 }
+
+export function createSourceIdMapping(text: string): {
+  sourceIdToDisplay: Map<number, number>;
+  displayToSourceId: Map<number, number>;
+  orderedSourceIds: number[];
+} {
+  const regex = /\[(\d+)\]/g;
+  const seen = new Set<number>();
+  const orderedSourceIds: number[] = [];
+
+  let match;
+  while ((match = regex.exec(text)) !== null) {
+    const sourceId = parseInt(match[1], 10);
+    if (!seen.has(sourceId)) {
+      seen.add(sourceId);
+      orderedSourceIds.push(sourceId);
+    }
+  }
+
+  const sourceIdToDisplay = new Map<number, number>();
+  const displayToSourceId = new Map<number, number>();
+
+  orderedSourceIds.forEach((sourceId, index) => {
+    const displayNumber = index + 1;
+    sourceIdToDisplay.set(sourceId, displayNumber);
+    displayToSourceId.set(displayNumber, sourceId);
+  });
+
+  return { sourceIdToDisplay, displayToSourceId, orderedSourceIds };
+}
