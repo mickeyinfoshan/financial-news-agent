@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { CheckCircle2, XCircle, AlertTriangle, ChevronDown, ChevronRight } from 'lucide-react';
 import { Message } from '@/types/message';
 import { ClaimData } from '@/types/api';
+import { createSourceIdMapping } from '@/utils/citations';
 import clsx from 'clsx';
 
 interface CitationValidationPanelProps {
@@ -12,6 +13,9 @@ interface CitationValidationPanelProps {
 export function CitationValidationPanel({ message }: CitationValidationPanelProps) {
   const validation = message.citation_validation;
   const [expandedClaims, setExpandedClaims] = useState<Set<number>>(new Set());
+
+  // Create mapping from source IDs to display numbers
+  const mapping = createSourceIdMapping(message.content);
 
   if (!validation) {
     return (
@@ -152,7 +156,9 @@ export function CitationValidationPanel({ message }: CitationValidationPanelProp
                           <div className="citation-group valid">
                             <span className="citation-label">Valid:</span>
                             {claim.citations.map((num, i) => (
-                              <span key={i} className="citation-num">{num}</span>
+                              <span key={i} className="citation-num">
+                                [{mapping.sourceIdToDisplay.get(num) ?? num}]
+                              </span>
                             ))}
                           </div>
                         )}
@@ -160,7 +166,9 @@ export function CitationValidationPanel({ message }: CitationValidationPanelProp
                           <div className="citation-group invalid">
                             <span className="citation-label">Invalid:</span>
                             {claim.invalid_citations.map((num, i) => (
-                              <span key={i} className="citation-num">{num}</span>
+                              <span key={i} className="citation-num">
+                                [{mapping.sourceIdToDisplay.get(num) ?? num}]
+                              </span>
                             ))}
                           </div>
                         )}

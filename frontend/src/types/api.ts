@@ -1,6 +1,7 @@
 // Type definitions for API responses
 
 export type Source = {
+  id: number;
   title: string;
   date: string;
   source: string;
