@@ -1,5 +1,7 @@
 """CLI entry point for the financial news agent."""
 
+from typing import Any
+
 from .agent import run_agent_with_retry, create_conversation
 from .utils import extract_citations
 from .types import AgentResult, MessageDict, EvaluationResult, RetryAttempt, CitationValidationResult
@@ -52,8 +54,8 @@ def display_citation_validation(citation_validation: CitationValidationResult) -
     print()
 
     # Group issues by type
-    invalid_citation_claims = []
-    unsupported_claims = []
+    invalid_citation_claims: list[dict[str, Any]] = []
+    unsupported_claims: list[dict[str, Any]] = []
 
     for claim_data in claims:
         claim_text = claim_data.get("claim", "")
