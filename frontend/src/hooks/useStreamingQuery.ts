@@ -40,6 +40,16 @@ export function useStreamingQuery() {
 
           case 'iteration_start':
             console.log('→ Iteration:', event.data.iteration);
+            // Update sources if provided (for retry/FIX scenarios)
+            if (event.data.sources) {
+              const currentState = useMessageStore.getState().streamingState;
+              if (currentState) {
+                setStreamingState({
+                  ...currentState,
+                  sources: event.data.sources
+                });
+              }
+            }
             break;
 
           case 'token':
