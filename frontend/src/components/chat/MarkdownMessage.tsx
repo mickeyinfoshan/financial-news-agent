@@ -20,12 +20,12 @@ export function MarkdownMessage({ content, onCitationClick }: MarkdownMessagePro
       if (typeof child === 'string') {
         const parts = parseCitations(child);
         return parts.map((part, i) => {
-          if (part.type === 'citation' && part.citationIndex !== undefined) {
+          if (part.type === 'citation' && part.sourceId !== undefined) {
             return (
               <button
                 key={i}
                 className="citation-badge-inline"
-                onClick={() => onCitationClick(part.citationIndex! + 1)}
+                onClick={() => onCitationClick(part.sourceId!)}
               >
                 {part.content}
               </button>

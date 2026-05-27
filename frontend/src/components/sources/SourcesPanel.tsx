@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { ExternalLink, ChevronDown, ChevronUp } from 'lucide-react';
 import { useUIStore } from '@/store/uiStore';
 import { formatDate } from '@/utils/formatting';
-import { extractCitationNumbers } from '@/utils/citations';
+import { extractSourceIds } from '@/utils/citations';
 import { Message } from '@/types/message';
 import clsx from 'clsx';
 
@@ -12,27 +12,27 @@ interface SourcesPanelProps {
 }
 
 export default function SourcesPanel({ message }: SourcesPanelProps) {
-  const { selectedSourceIndex, selectSource } = useUIStore();
+  const { selectedSourceId, selectSource } = useUIStore();
   const [expandedSources, setExpandedSources] = useState<Set<number>>(new Set());
   const sourceRefs = useRef<Map<number, HTMLDivElement>>(new Map());
 
   const allSources = message.sources || [];
 
-  // Extract citation numbers from message content (0-indexed)
-  const citedIndices = extractCitationNumbers(message.content);
+  // Extract source IDs from message content
+  const citedSourceIds = extractSourceIds(message.content);
 
   // Filter sources to only show cited ones
-  const sources = allSources.filter((_: any, index: number) => citedIndices.includes(index));
+  const sources = allSources.filter((source: any) => citedSourceIds.includes(source.id));
 
   // Auto-scroll to selected source
   useEffect(() => {
-    if (selectedSourceIndex !== null) {
-      const element = sourceRefs.current.get(selectedSourceIndex);
+    if (selectedSourceId !== null) {
+      const element = sourceRefs.current.get(selectedSourceId);
       if (element) {
         element.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       }
     }
-  }, [selectedSourceIndex]);
+  }, [selectedSourceId]);
 
   const toggleExpanded = (index: number) => {
     setExpandedSources(prev => {
@@ -57,27 +57,25 @@ export default function SourcesPanel({ message }: SourcesPanelProps) {
   return (
     <div className="sources-panel">
       {sources.map((source: any, displayIndex: number) => {
-        // Get the original citation number (1-indexed)
-        const originalIndex = allSources.indexOf(source);
-        const citationNumber = originalIndex + 1;
-        const isSelected = selectedSourceIndex === citationNumber;
+        const sourceId = source.id;
+        const isSelected = selectedSourceId === sourceId;
         const isExpanded = expandedSources.has(displayIndex);
 
         return (
           <motion.div
             key={displayIndex}
             ref={(el) => {
-              if (el) sourceRefs.current.set(citationNumber, el);
+              if (el) sourceRefs.current.set(sourceId, el);
             }}
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: displayIndex * 0.1 }}
             className={clsx('source-card', isSelected && 'selected')}
-            onClick={() => selectSource(isSelected ? null : citationNumber)}
+            onClick={() => selectSource(isSelected ? null : sourceId)}
           >
             {/* Citation Badge */}
             <div className="source-header">
-              <span className="citation-badge">{citationNumber}</span>
+              <span className="citation-badge">{sourceId}</span>
               <div className="source-title-section">
                 <h4 className="source-title">{source.title}</h4>
                 {source.url && (

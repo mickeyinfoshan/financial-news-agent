@@ -1,7 +1,7 @@
 export interface CitationNode {
   type: 'text' | 'citation';
   content: string;
-  citationIndex?: number;
+  sourceId?: number;
 }
 
 export function parseCitations(text: string): CitationNode[] {
@@ -23,7 +23,7 @@ export function parseCitations(text: string): CitationNode[] {
     nodes.push({
       type: 'citation',
       content: match[0],
-      citationIndex: parseInt(match[1]) - 1, // 0-indexed
+      sourceId: parseInt(match[1]),
     });
 
     lastIndex = regex.lastIndex;
@@ -40,13 +40,13 @@ export function parseCitations(text: string): CitationNode[] {
   return nodes;
 }
 
-export function extractCitationNumbers(text: string): number[] {
+export function extractSourceIds(text: string): number[] {
   const regex = /\[(\d+)\]/g;
   const numbers: number[] = [];
   let match;
 
   while ((match = regex.exec(text)) !== null) {
-    numbers.push(parseInt(match[1]) - 1); // 0-indexed
+    numbers.push(parseInt(match[1]));
   }
 
   return numbers;

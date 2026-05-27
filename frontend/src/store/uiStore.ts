@@ -4,14 +4,14 @@ interface UIState {
   isSourcesPanelOpen: boolean;
   isEvaluationPanelOpen: boolean;
   isSidebarOpen: boolean;
-  selectedSourceIndex: number | null;
+  selectedSourceId: number | null;
   highlightedCitation: number | null;
   selectedMessageId: string | null;
 
   toggleSourcesPanel: () => void;
   toggleEvaluationPanel: () => void;
   toggleSidebar: () => void;
-  selectSource: (index: number | null) => void;
+  selectSource: (id: number | null) => void;
   highlightCitation: (index: number | null) => void;
   selectMessage: (messageId: string | null) => void;
 }
@@ -20,14 +20,14 @@ export const useUIStore = create<UIState>((set) => ({
   isSourcesPanelOpen: true,
   isEvaluationPanelOpen: true,
   isSidebarOpen: true,
-  selectedSourceIndex: null,
+  selectedSourceId: null,
   highlightedCitation: null,
   selectedMessageId: null,
 
   toggleSourcesPanel: () => set((state) => ({ isSourcesPanelOpen: !state.isSourcesPanelOpen })),
   toggleEvaluationPanel: () => set((state) => ({ isEvaluationPanelOpen: !state.isEvaluationPanelOpen })),
   toggleSidebar: () => set((state) => ({ isSidebarOpen: !state.isSidebarOpen })),
-  selectSource: (index: number | null) => set({ selectedSourceIndex: index }),
+  selectSource: (id: number | null) => set({ selectedSourceId: id }),
   highlightCitation: (index: number | null) => set({ highlightedCitation: index }),
   selectMessage: (messageId: string | null) => set({ selectedMessageId: messageId }),
 }));
