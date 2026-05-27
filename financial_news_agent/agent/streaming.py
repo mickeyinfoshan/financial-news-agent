@@ -88,7 +88,13 @@ async def run_agent_stream(
     MAX_ITERATIONS = 10
 
     for iteration in range(MAX_ITERATIONS):
-        yield {"event": "iteration_start", "data": {"iteration": iteration + 1}}
+        yield {
+            "event": "iteration_start",
+            "data": {
+                "iteration": iteration + 1,
+                "sources": tracker.sources
+            }
+        }
 
         try:
             # Force final answer on last iteration - prevents infinite tool calling loops
