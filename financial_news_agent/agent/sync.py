@@ -75,7 +75,7 @@ def run_agent(
 
             try:
                 llm_metadata: dict[str, Any] = {
-                    "model": os.getenv("OPENAI_MODEL", "gpt-4.5"),
+                    "model": os.getenv("OPENAI_MODEL", "gpt-5.5"),
                     "iteration": iteration + 1,
                     "has_tools": True
                 }
@@ -85,7 +85,7 @@ def run_agent(
 
                 with tracker.time_operation("LLM Reasoning Call", "llm_call", llm_metadata) as timing_node:
                     response = client.chat.completions.create(  # type: ignore[call-overload]
-                        model=os.getenv("OPENAI_MODEL", "gpt-4.5"),
+                        model=os.getenv("OPENAI_MODEL", "gpt-5.5"),
                         messages=messages,
                         tools=tools,
                         tool_choice=tool_choice_param,

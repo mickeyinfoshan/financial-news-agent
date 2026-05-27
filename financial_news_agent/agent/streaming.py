@@ -102,7 +102,7 @@ async def run_agent_stream(
 
             # Stream response
             stream = await client.chat.completions.create(  # type: ignore[call-overload]
-                model=os.getenv("OPENAI_MODEL", "gpt-4.5"),
+                model=os.getenv("OPENAI_MODEL", "gpt-5.5"),
                 messages=messages,
                 tools=tools,
                 tool_choice=tool_choice_param,

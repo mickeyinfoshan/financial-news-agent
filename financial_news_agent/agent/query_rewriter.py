@@ -75,7 +75,7 @@ REWRITTEN QUERY:"""
 
     try:
         response = client.chat.completions.create(
-            model=os.getenv("OPENAI_MODEL", "gpt-4.5"),
+            model=os.getenv("OPENAI_MODEL", "gpt-5.5"),
             messages=[
                 {
                     "role": "system",

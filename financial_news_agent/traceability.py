@@ -113,7 +113,7 @@ class TraceabilityTracker:
         Args:
             name: Human-readable name (e.g., "LLM Reasoning Call", "NewsAPI Request")
             category: Category for grouping (e.g., "llm_call", "api_call", "tool_call")
-            metadata: Optional metadata to attach (e.g., {"model": "gpt-4.5", "tokens": 1500})
+            metadata: Optional metadata to attach (e.g., {"model": "gpt-5.5", "tokens": 1500})
 
         Usage:
             with tracker.time_operation("LLM Reasoning", "llm_call", {"iteration": 1}):

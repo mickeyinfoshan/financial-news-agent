@@ -10,7 +10,7 @@ def mock_env_vars(monkeypatch):
     monkeypatch.setenv("NEWS_API_KEY", "test_news_key")
     monkeypatch.setenv("OPENAI_API_KEY", "test_openai_key")
     monkeypatch.setenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
-    monkeypatch.setenv("OPENAI_MODEL", "gpt-4")
+    monkeypatch.setenv("OPENAI_MODEL", "gpt-5.5")
 
 
 @pytest.fixture

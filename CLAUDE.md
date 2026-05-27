@@ -34,7 +34,7 @@ uv run python -m financial_news_agent.api_server
 - **Language**: Python 3.11+
 - **Package Manager**: `uv` (NEVER use `pip`)
 - **Agent Framework**: Custom agent loop with OpenAI function calling
-- **LLM**: OpenAI API (GPT-4.5 or compatible models)
+- **LLM**: OpenAI API (GPT-5.5 or compatible models)
 - **News Sources**: NewsAPI, Finnhub, Marketaux (extensible provider system)
 - **API**: FastAPI with streaming support
 

@@ -21,12 +21,14 @@ MARKETAUX_API_KEY=your_marketaux_api_key  # Optional
 ### OpenAI Settings
 
 ```bash
-# Custom OpenAI endpoint (optional)
-OPENAI_BASE_URL=https://api.openai.com/v1
+# Custom OpenAI-compatible endpoint
+OPENAI_BASE_URL=https://www.right.codes/codex/v1
 
-# Model selection (optional, defaults to gpt-4.5)
-OPENAI_MODEL=gpt-4.5
+# Model selection (optional, defaults to gpt-5.5)
+OPENAI_MODEL=gpt-5.5
 ```
+
+**Note:** This project uses a custom OpenAI-compatible endpoint. If using standard OpenAI API, set `OPENAI_BASE_URL=https://api.openai.com/v1`
 
 ### Context Window Management
 
@@ -146,8 +148,8 @@ FINNHUB_API_KEY=...
 MARKETAUX_API_KEY=...
 
 # OpenAI Settings (Optional)
-OPENAI_BASE_URL=https://api.openai.com/v1
-OPENAI_MODEL=gpt-4.5
+OPENAI_BASE_URL=https://www.right.codes/codex/v1
+OPENAI_MODEL=gpt-5.5
 
 # Context Window Management (Optional)
 CONTEXT_TOKEN_THRESHOLD=12000

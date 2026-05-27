@@ -63,7 +63,7 @@ The Financial News Agent is built using a simple agent loop pattern with OpenAI 
 When `run_agent(query)` is called:
 
 ```python
-# financial_news_agent/agent.py:15
+# financial_news_agent/agent/sync.py
 def run_agent(user_query: str) -> dict:
     client = OpenAI(
         api_key=os.getenv("OPENAI_API_KEY"),
@@ -77,12 +77,12 @@ def run_agent(user_query: str) -> dict:
 
 ### 2. Agent Loop
 
-The core loop (lines 54-122 in `agent.py`) iterates up to 10 times:
+The core loop in `agent/sync.py` iterates up to 10 times:
 
 **Step 1: LLM Call with Tools**
 ```python
 response = client.chat.completions.create(
-    model=os.getenv("OPENAI_MODEL", "gpt-4.5"),
+    model=os.getenv("OPENAI_MODEL", "gpt-5.5"),
     messages=messages,
     tools=tools,
     tool_choice="auto",
@@ -205,7 +205,7 @@ def evaluate_response(answer: str, tracker) -> dict:
     
     # Call LLM for evaluation
     response = client.chat.completions.create(
-        model=os.getenv("OPENAI_MODEL", "gpt-4.5"),
+        model=os.getenv("OPENAI_MODEL", "gpt-5.5"),
         messages=[...],
         temperature=0.3,
         max_tokens=500
@@ -288,8 +288,8 @@ Typical execution:
 
 ## File References
 
-- Main agent loop: `financial_news_agent/agent.py:15-139`
-- News tool: `financial_news_agent/news_tool.py:44-75`
-- Traceability: `financial_news_agent/traceability.py:1-35`
-- Evaluator: `financial_news_agent/evaluator.py:12-100`
-- CLI entry: `financial_news_agent/__main__.py:1-50`
+- Main agent loop: `financial_news_agent/agent/sync.py` (synchronous) and `agent/streaming.py` (async streaming)
+- News tool: `financial_news_agent/news_tool.py`
+- Traceability: `financial_news_agent/traceability.py`
+- Evaluator: `financial_news_agent/evaluator.py`
+- CLI entry: `financial_news_agent/__main__.py`

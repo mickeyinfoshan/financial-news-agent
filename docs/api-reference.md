@@ -4,7 +4,7 @@
 
 ### `run_agent(user_query: str) -> dict`
 
-**Location**: `financial_news_agent/agent.py:15`
+**Location**: `financial_news_agent/agent/sync.py`
 
 Executes the financial news agent to search for news and generate analysis.
 
@@ -410,7 +410,7 @@ NEWS_API_KEY=<your-newsapi-key>
 
 - **OPENAI_API_KEY**: API key for the LLM endpoint
 - **OPENAI_BASE_URL**: Base URL for OpenAI-compatible API
-- **OPENAI_MODEL**: Model identifier (e.g., "gpt-5.5", "gpt-4-turbo")
+- **OPENAI_MODEL**: Model identifier (e.g., "gpt-5.5")
 - **NEWS_API_KEY**: NewsAPI key (get free at https://newsapi.org)
 
 ## Error Handling

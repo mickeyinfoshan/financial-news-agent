@@ -122,7 +122,7 @@ Respond with ONLY a JSON object in this exact format:
 
     try:
         response = client.chat.completions.create(
-            model=os.getenv("OPENAI_MODEL", "gpt-4.5"),
+            model=os.getenv("OPENAI_MODEL", "gpt-5.5"),
             messages=[
                 {"role": "system", "content": "You are an expert evaluator of financial analysis quality. Respond only with valid JSON."},
                 {"role": "user", "content": evaluation_prompt}

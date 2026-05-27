@@ -130,7 +130,7 @@ def extract_claims_with_citations(
     prompt = EXTRACTION_PROMPT.format(answer=answer)
 
     response = client.chat.completions.create(
-        model=os.getenv("OPENAI_MODEL", "gpt-4o"),
+        model=os.getenv("OPENAI_MODEL", "gpt-5.5"),
         messages=[
             {"role": "system", "content": "You are an expert at extracting structured information. Respond only with valid JSON."},
             {"role": "user", "content": prompt}
@@ -289,7 +289,7 @@ CITED SOURCES:
 
     try:
         response = client.chat.completions.create(
-            model=os.getenv("OPENAI_MODEL", "gpt-4o"),
+            model=os.getenv("OPENAI_MODEL", "gpt-5.5"),
             messages=[
                 {"role": "system", "content": "You are an expert fact-checker. Respond only with valid JSON."},
                 {"role": "user", "content": prompt}

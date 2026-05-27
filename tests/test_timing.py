@@ -276,12 +276,12 @@ class TestTraceabilityTracker:
             time.sleep(0.01)
             # Update metadata during operation
             node.metadata["tokens"] = 1234
-            node.metadata["model"] = "gpt-4.5"
+            node.metadata["model"] = "gpt-5.5"
 
         # Check metadata was preserved
         assert tracker._timing_root.metadata["initial"] == "value"
         assert tracker._timing_root.metadata["tokens"] == 1234
-        assert tracker._timing_root.metadata["model"] == "gpt-4.5"
+        assert tracker._timing_root.metadata["model"] == "gpt-5.5"
 
     def test_multiple_root_operations(self):
         """Test multiple separate timing operations (not nested)."""
