@@ -19,6 +19,7 @@ from .types import (
     CitationValidationResult,
     SourceData
 )
+from .utils import preprocess_answer
 
 logger = logging.getLogger(__name__)
 
@@ -179,15 +180,15 @@ def validate_extraction(
     """
     errors = []
 
-    # Remove all citation markers [1], [2], etc. from answer for claim matching
-    answer_without_citations = re.sub(r'\[\d+\]', '', answer)
+    # Preprocess answer: remove citations and markdown for claim matching
+    answer_clean = preprocess_answer(answer)
 
     for idx, claim_data in enumerate(extracted_claims):
         claim_text = claim_data["claim"]
         claim_citations = claim_data["citations"]
 
-        # Check 1: Claim text exists in answer (after removing citations)
-        if claim_text not in answer_without_citations:
+        # Check 1: Claim text exists in answer (after preprocessing)
+        if claim_text not in answer_clean:
             errors.append(f"Claim {idx+1} not found in answer: '{claim_text}'")
 
         # Check 2: All citations exist in original answer

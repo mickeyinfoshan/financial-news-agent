@@ -96,8 +96,8 @@ export default function SourcesPanel({ message }: SourcesPanelProps) {
 
             {/* Metadata */}
             <div className="source-metadata">
-              {source.published_at && (
-                <span className="meta-item">{formatDate(source.published_at)}</span>
+              {source.date && (
+                <span className="meta-item">{formatDate(source.date)}</span>
               )}
               {source.source && (
                 <span className="meta-item">{source.source}</span>

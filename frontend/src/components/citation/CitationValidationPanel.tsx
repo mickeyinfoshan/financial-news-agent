@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { CheckCircle2, XCircle, AlertTriangle, ChevronDown, ChevronRight } from 'lucide-react';
+import { CheckCircle2, XCircle, ChevronDown, ChevronRight } from 'lucide-react';
 import { Message } from '@/types/message';
 import { ClaimData } from '@/types/api';
 import { createSourceIdMapping } from '@/utils/citations';
